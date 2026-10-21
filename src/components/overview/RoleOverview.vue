@@ -252,7 +252,7 @@ function handleDrilldown(target) {
     return;
   }
   if (target === 'myAttendance') {
-    window.dispatchEvent(new CustomEvent('hr-personal-attendance'));
+    navigateToTab('my-attendance');
     return;
   }
   if (target === 'myRequests' || target === 'myClaims') {
@@ -312,7 +312,7 @@ function handleNavShortcut(action) {
   } else if (action === 'myPayslips') {
     navigateToTab('payslips-portal');
   } else if (action === 'myAttendance') {
-    window.dispatchEvent(new CustomEvent('hr-personal-attendance'));
+    navigateToTab('my-attendance');
   }
 }
 

@@ -1541,7 +1541,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         if(t === 'leave-management') fetchLeaveManagementData();
         if(t === 'payslips-portal') fetchPayslips();
         if(t === 'my-profile') loadMyProfile();
-        if(t === 'my-attendance') window.dispatchEvent(new CustomEvent('hr-personal-attendance'));
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hr-switch-tab', { detail: { tab: t } }));
     }
 
     function switchMobileTab(tabId, element) {

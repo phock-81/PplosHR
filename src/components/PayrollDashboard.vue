@@ -11,7 +11,14 @@ const showDossierModal = ref(false);
 const dossierTargetEmployee = ref('');
 const showPersonalAttendance = ref(false);
 function openPersonalAttendance() {
+  if (typeof document !== 'undefined') {
+    const activeSection = document.querySelector('.tab-section.active');
+    if (activeSection && activeSection.id === 'my-attendance') return;
+  }
   if (currentUser.value && !isMobile.value) showPersonalAttendance.value = true;
+}
+function onTabSwitch() {
+  showPersonalAttendance.value = false;
 }
 function openStaffDossier(name = '') {
     dossierTargetEmployee.value = name;
@@ -146,6 +153,7 @@ onMounted(() => {
     if (typeof window !== 'undefined') {
         window.addEventListener('resize', updateIsMobile);
         window.addEventListener('hr-session', handleSession);
+        window.addEventListener('hr-switch-tab', onTabSwitch);
         window.addEventListener('hr-personal-attendance', openPersonalAttendance);
         document.addEventListener('fullscreenchange', onFullscreenChange);
         document.addEventListener('webkitfullscreenchange', onFullscreenChange);
@@ -158,6 +166,7 @@ onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('resize', updateIsMobile);
         window.removeEventListener('hr-session', handleSession);
+        window.removeEventListener('hr-switch-tab', onTabSwitch);
         window.removeEventListener('hr-personal-attendance', openPersonalAttendance);
         document.removeEventListener('fullscreenchange', onFullscreenChange);
         document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
