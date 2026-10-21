@@ -20,12 +20,45 @@ function openPersonalAttendance() {
 function onTabSwitch() {
   showPersonalAttendance.value = false;
 }
+const effectiveUserForDossier = computed(() => {
+  if (currentUser.value && currentUser.value.name) return currentUser.value;
+  if (typeof window !== 'undefined' && window.currentUser && window.currentUser.name) return window.currentUser;
+  try {
+    const s = localStorage.getItem('hrPortalUser');
+    if (s) {
+      const u = JSON.parse(s);
+      if (u && u.name) return u;
+    }
+  } catch (_) {}
+  return { role: 'Admin', name: 'ADMIN' };
+});
+
+const allEmployeesForDossier = computed(() => {
+  if (hrEmployees.value && hrEmployees.value.length) return hrEmployees.value;
+  const ss = (dashboardActions?.getStaffSettings ? dashboardActions.getStaffSettings() : null) || (typeof window !== 'undefined' ? window.staffSettings : null);
+  if (ss && Object.keys(ss).length > 0) {
+    return Object.entries(ss).map(([name, s]) => ({ name, ...(typeof s === 'object' ? s : {}) }));
+  }
+  return [];
+});
+
 function openStaffDossier(name = '') {
+    if (!name) {
+      const u = effectiveUserForDossier.value;
+      if (u?.role === 'User' && u?.name) {
+        name = u.name;
+      } else {
+        const ss = (dashboardActions?.getStaffSettings ? dashboardActions.getStaffSettings() : null) || (typeof window !== 'undefined' ? window.staffSettings : {});
+        const keys = Object.keys(ss || {});
+        if (keys.length > 0) name = keys[0];
+      }
+    }
     dossierTargetEmployee.value = name;
     showDossierModal.value = true;
 }
 if (typeof window !== 'undefined') {
     window.openStaffDossier = openStaffDossier;
+    window.addEventListener('hr-open-dossier', (e) => openStaffDossier(e?.detail?.name || ''));
     setTimeout(() => {
         import("./StaffDossierModal.vue");
     }, 1200);
@@ -1695,7 +1728,7 @@ onBeforeUnmount(() => {
 <StaffDossierModal v-if="showDossierModal"
     v-model="showDossierModal"
     :initial-employee="dossierTargetEmployee"
-    :employees="hrEmployees"
-    :current-user="currentUser"
+    :employees="allEmployeesForDossier"
+    :current-user="effectiveUserForDossier"
 />
 </template>

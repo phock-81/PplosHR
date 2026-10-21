@@ -56,12 +56,38 @@ onUnmounted(() => {
   }
 });
 
+function getGlobalStaffSettings() {
+  if (typeof window !== 'undefined') {
+    if (window.staffSettings && Object.keys(window.staffSettings).length > 0) {
+      return window.staffSettings;
+    }
+    if (dashboardActions && typeof dashboardActions.getStaffSettings === 'function') {
+      const ds = dashboardActions.getStaffSettings();
+      if (ds && Object.keys(ds).length > 0) return ds;
+    }
+    if (window.CacheManager?.getBootstrap) {
+      const b = window.CacheManager.getBootstrap();
+      if (b?.staffSettings && Object.keys(b.staffSettings).length > 0) return b.staffSettings;
+    }
+  }
+  return {};
+}
+
 const effectiveUser = computed(() => {
   if (props.currentUser && props.currentUser.name && props.currentUser.name !== 'ADMIN') {
     return props.currentUser;
   }
-  if (typeof window !== 'undefined' && window.currentUser) {
+  if (typeof window !== 'undefined' && window.currentUser && window.currentUser.name) {
     return window.currentUser;
+  }
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('hrPortalUser');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u && u.name) return u;
+      }
+    } catch (_) {}
   }
   return props.currentUser || { role: 'Admin', name: 'ADMIN' };
 });
@@ -85,12 +111,15 @@ const canViewPayroll = computed(() => {
 });
 
 const allStaffList = computed(() => {
-  let list = props.employees;
-  if ((!list || !list.length) && typeof window !== 'undefined' && window.staffSettings) {
-    list = Object.entries(window.staffSettings).map(([name, s]) => ({
-      name,
-      ...s
-    }));
+  let list = (props.employees && props.employees.length) ? props.employees : [];
+  if (!list.length) {
+    const allSettings = getGlobalStaffSettings();
+    if (allSettings && Object.keys(allSettings).length > 0) {
+      list = Object.entries(allSettings).map(([name, s]) => ({
+        name,
+        ...(typeof s === 'object' ? s : {})
+      }));
+    }
   }
   if (!Array.isArray(list)) return [];
   return list.map(e => {
@@ -187,15 +216,81 @@ const filteredEmployeeOptions = computed(() => {
   return allStaffList.value;
 });
 
+// Persistent in-memory and sessionStorage cache across modal opens and unmounts
+const globalDossierCache = new Map();
+
+function getCachedDossier(name) {
+  if (!name) return null;
+  const key = String(name).trim().toUpperCase();
+  if (globalDossierCache.has(key)) {
+    return globalDossierCache.get(key);
+  }
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const raw = sessionStorage.getItem(`pplos_dossier_${key}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Date.now() - (parsed.cachedAt || 0) < 15 * 60 * 1000) {
+          globalDossierCache.set(key, parsed.data);
+          return parsed.data;
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function setCachedDossier(name, data) {
+  if (!name || !data) return;
+  const key = String(name).trim().toUpperCase();
+  globalDossierCache.set(key, data);
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      sessionStorage.setItem(`pplos_dossier_${key}`, JSON.stringify({
+        cachedAt: Date.now(),
+        data
+      }));
+    } catch (_) {}
+  }
+}
+
+function resolveInitialTarget() {
+  const initial = (props.initialEmployee || '').trim();
+  if (initial) return initial;
+
+  const curUser = effectiveUser.value;
+  // If user role is Staff / User or has a valid name, default to own profile
+  if (curUser?.name && curUser.name !== 'ADMIN') {
+    if (curUser.role === 'User' || curUser.role === 'Staff') {
+      return curUser.name;
+    }
+  }
+
+  // If Admin or HOD without preselected target, pick own name if in staff list, or first staff
+  const staff = allStaffList.value;
+  if (staff.length > 0) {
+    if (curUser?.name) {
+      const ownStaff = staff.find(s => s.name.toUpperCase() === curUser.name.toUpperCase());
+      if (ownStaff) return ownStaff.name;
+    }
+    return staff[0].name;
+  }
+
+  return curUser?.name || '';
+}
+
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       activeTab.value = 'leaves';
-      selectedEmployee.value = props.initialEmployee || props.currentUser?.name || '';
-      searchQuery.value = selectedEmployee.value;
+      const target = resolveInitialTarget();
+      selectedEmployee.value = target;
+      searchQuery.value = target;
       error.value = '';
-      loadDossier();
+      if (target) {
+        loadDossier();
+      }
     } else {
       viewLetter.value = null;
     }
@@ -214,6 +309,17 @@ watch(
   }
 );
 
+watch(allStaffList, (newList) => {
+  if (!selectedEmployee.value && newList.length > 0) {
+    const target = resolveInitialTarget();
+    if (target) {
+      selectedEmployee.value = target;
+      searchQuery.value = target;
+      loadDossier();
+    }
+  }
+});
+
 function close() {
   emit('update:modelValue', false);
 }
@@ -231,8 +337,6 @@ function trapDialog(event) {
   }
 }
 
-// Persistent in-memory cache across modal opens
-const dossierCache = new Map();
 const isSyncing = ref(false);
 
 function calculateTenure(joinedDate, serviceYearsSource) {
@@ -258,15 +362,19 @@ function calculateTenure(joinedDate, serviceYearsSource) {
 function findStaffObject(name) {
   if (!name) return null;
   const norm = String(name).trim().toUpperCase();
-  if (typeof window !== 'undefined' && window.staffSettings) {
-    if (window.staffSettings[name]) return window.staffSettings[name];
-    const match = Object.values(window.staffSettings).find(s => 
-      s && (String(s.name || '').trim().toUpperCase() === norm ||
-            String(s.employeeNo || '').trim().toUpperCase() === norm ||
-            String(s.id || '').trim().toUpperCase() === norm)
-    );
-    if (match) return match;
-  }
+
+  // 1. Check global staffSettings (window, dashboardActions, CacheManager)
+  const allSettings = getGlobalStaffSettings();
+  if (allSettings[name]) return allSettings[name];
+  if (allSettings[norm]) return allSettings[norm];
+  const matchInSettings = Object.values(allSettings).find(s => 
+    s && (String(s.name || '').trim().toUpperCase() === norm ||
+          String(s.employeeNo || '').trim().toUpperCase() === norm ||
+          String(s.id || '').trim().toUpperCase() === norm)
+  );
+  if (matchInSettings) return matchInSettings;
+
+  // 2. Check props.employees
   if (Array.isArray(props.employees)) {
     const match = props.employees.find(e => 
       typeof e === 'object' && e && (
@@ -276,6 +384,23 @@ function findStaffObject(name) {
     );
     if (match) return match;
   }
+
+  // 3. Fallback to effectiveUser self
+  const curUser = effectiveUser.value;
+  if (curUser && String(curUser.name || '').trim().toUpperCase() === norm) {
+    return {
+      name: curUser.name,
+      role: curUser.role || 'Staff',
+      email: curUser.email || '',
+      department: curUser.department || '',
+      company: curUser.company || '',
+      alBalance: curUser.alBalance,
+      alEntitlement: curUser.alEntitlement,
+      mcBalance: curUser.mcBalance,
+      mcEntitlement: curUser.mcEntitlement
+    };
+  }
+
   return null;
 }
 
@@ -287,17 +412,20 @@ function buildLocalDossier(name) {
   const tenure = calculateTenure(s.joinedDate, s.serviceYearsSource);
 
   let localLeaves = [];
-  if (typeof window !== 'undefined' && Array.isArray(window.globalLeaves)) {
-    localLeaves = window.globalLeaves.filter(l => (l.name || l.employee) === targetName).map(l => ({
-      id: l.id || Math.random().toString(),
-      name: targetName,
-      type: l.type || l.category || 'AL',
-      start: l.start,
-      end: l.end,
-      days: Number(l.days || l.totalDays || 1),
-      status: l.status || 'Approved',
-      reason: l.reason || ''
-    }));
+  if (typeof window !== 'undefined') {
+    const allLeaves = window.globalLeaves || window.teamLeave || (window.CacheManager?.getTeamLeave ? window.CacheManager.getTeamLeave() : []) || [];
+    if (Array.isArray(allLeaves)) {
+      localLeaves = allLeaves.filter(l => String(l.name || l.employee || '').trim().toUpperCase() === targetName.toUpperCase()).map(l => ({
+        id: l.id || Math.random().toString(),
+        name: targetName,
+        type: l.type || l.category || 'AL',
+        start: l.start,
+        end: l.end,
+        days: Number(l.days || l.totalDays || 1),
+        status: l.status || 'Approved',
+        reason: l.reason || ''
+      }));
+    }
   }
 
   return {
@@ -350,8 +478,8 @@ function buildLocalDossier(name) {
       history: localLeaves,
       applications: localLeaves,
       balances: [
-        { category: 'Annual', balance: s.alEntitlement || 0, entitlement: s.alEntitlement || 0, used: 0 },
-        { category: 'Medical', balance: s.mcEntitlement || 0, entitlement: s.mcEntitlement || 0, used: 0 }
+        { category: 'Annual', balance: s.alBalance ?? s.alEntitlement ?? 0, entitlement: s.alEntitlement || 0, used: s.alUsed || 0 },
+        { category: 'Medical', balance: s.mcBalance ?? s.mcEntitlement ?? 0, entitlement: s.mcEntitlement || 0, used: 0 }
       ],
       leaveEvents: [],
       openingBalances: []
@@ -372,18 +500,28 @@ function buildLocalDossier(name) {
 }
 
 async function loadDossier(force = false) {
-  const empTarget = selectedEmployee.value || searchQuery.value || props.currentUser?.name || '';
-  if (!empTarget) return;
+  let empTarget = (selectedEmployee.value || searchQuery.value || resolveInitialTarget()).trim();
+  if (!empTarget && allStaffList.value.length > 0) {
+    empTarget = allStaffList.value[0].name;
+  }
+  if (!empTarget) {
+    loading.value = false;
+    dossier.value = null;
+    return;
+  }
 
+  selectedEmployee.value = empTarget;
+  searchQuery.value = empTarget;
   error.value = '';
 
-  // 1. Instant response from client memory cache
-  if (!force && dossierCache.has(empTarget)) {
-    dossier.value = dossierCache.get(empTarget);
+  // 1. Instant response from persistent cache (0ms)
+  const cached = getCachedDossier(empTarget);
+  if (!force && cached) {
+    dossier.value = cached;
     loading.value = false;
     isSyncing.value = true;
   } else if (!force && !dossier.value) {
-    // 2. Instant response from local staff settings
+    // 2. Instant response from local staff settings & leaves (0ms)
     const local = buildLocalDossier(empTarget);
     if (local) {
       dossier.value = local;
@@ -399,9 +537,9 @@ async function loadDossier(force = false) {
 
   try {
     const res = await dashboardActions.apiPost('getStaffDossier', { employee: empTarget });
-    if (res && res.status === 'success') {
+    if (res && res.status === 'success' && res.data) {
       dossier.value = res.data;
-      dossierCache.set(empTarget, res.data);
+      setCachedDossier(empTarget, res.data);
       selectedEmployee.value = res.data.profile?.name || empTarget;
       if (activeTab.value === 'payroll' && !canViewPayroll.value) {
         activeTab.value = 'leaves';
@@ -1485,6 +1623,13 @@ function printLetterContent(ltr) {
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Fallback empty state if neither error, loading nor dossier -->
+        <div v-else class="text-center py-5 text-muted">
+          <i class="bi bi-person-bounding-box fs-1 text-secondary mb-3 d-block"></i>
+          <h5 class="fw-bold">No Staff Dossier Available</h5>
+          <p class="small mb-3">Please select or search for an employee above to view their 360° intelligence dossier.</p>
         </div>
       </div>
 

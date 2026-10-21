@@ -53,7 +53,17 @@ const showYearEndModal=ref(false);
 function openYearEndModal(){showYearEndModal.value=true;}
 const showDossierModal=ref(false);
 const dossierTargetEmployee=ref('');
-function openStaffDossier(name=''){dossierTargetEmployee.value=name;showDossierModal.value=true;}
+function openStaffDossier(name=''){
+  if (!name) {
+    if (user.value?.role === 'User' && user.value?.name) {
+      name = user.value.name;
+    } else if (employees.value && employees.value.length) {
+      name = employees.value[0]?.name || employees.value[0]?.employee || '';
+    }
+  }
+  dossierTargetEmployee.value=name;
+  showDossierModal.value=true;
+}
 if(typeof window!=='undefined'){setTimeout(()=>import('./StaffDossierModal.vue'),1500);}
 const showLetterModal=ref(false);
 function onOpenDossier(e){if(['HR','Admin','HOD','Supervisor'].includes(user.value?.role))openStaffDossier(e?.detail?.name||'');}
@@ -2126,14 +2136,15 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
 
 <style scoped>
 .enterprise-ops-card {
-  max-width: 1400px;
-  margin-left: auto;
-  margin-right: auto;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 .enterprise-ops-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 0.5rem;
+  gap: 0.75rem;
   width: 100%;
 }
 .enterprise-op-btn {
@@ -2143,11 +2154,13 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
   text-align: center;
   width: 100%;
   height: 100%;
-  min-height: 38px;
-  padding: 0.375rem 0.5rem;
+  min-height: 42px;
+  padding: 0.5rem 0.75rem;
   white-space: normal;
   line-height: 1.25;
   box-sizing: border-box;
+  font-size: 0.83rem;
+  border-radius: 8px;
 }
 @media (max-width: 1200px) {
   .enterprise-ops-grid {
