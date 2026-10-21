@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Firebase
+.firebase/
+
+# Scratch, build logs, and test runs
+tmp/
+outputs/
+*.log
+
+# Sensitive employee spreadsheets / exports
+*.xlsx
+*.xls
+*.zip
+*.rar
+
+# OS / Tooling artifacts
+desktop.ini
+Thumbs.db
+.DS_Store
+.superpowers/
+__pycache__/

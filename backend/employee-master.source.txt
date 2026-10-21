@@ -1,0 +1,120 @@
+// Employee master: Staff A:X remains compatible with existing payroll.
+const EMPLOYEE_HEADERS_ = ['Employee ID','Company ID','Department ID','Reporting Manager','Job Title','Work Location','Record Version','Assigned Resources','Job Title ID','Job Grade ID'];
+function hrRole_(role) { return ({Staff:'User',Supervisor:'HOD'})[role] || role || 'User'; }
+function hrStaffRows_() { return readSheet_(getSpreadsheet_().getSheetByName('Staff'),false); }
+function hrProfiles_() {
+  return hrStaffRows_().slice(1).filter(r=>r[0]).map((r,i)=>({id:r[24]||hrName_(r[0]),employee:hrName_(r[0]),employeeNo:r[24]||'',companyId:r[25]||'',departmentId:r[26]||'',manager:hrName_(r[27]),jobTitle:r[28]||'',jobTitleId:r[32]||'',gradeId:r[33]||'',location:r[29]||'',version:Number(r[30])||1,status:r[1]||'Active'}));
+}
+function hrTeam_(actor,name) { return hrManager_(actor) && hrProfiles_().some(r=>r.employee===hrName_(name)&&r.manager===actor.name&&r.employee!==actor.name); }
+function hrEmployeePayload_(payload,actor) {
+  hrAssert_(hrAdmin_(actor),'HR or Admin access is required.');
+  const rows=hrStaffRows_(),name=hrName_(payload.name),old=rows.slice(1).find(r=>hrName_(r[0])===name);
+  hrAssert_(name&&name.length<=160,'Employee name is required (maximum 160 characters).');
+  if(payload.isQuickSave){hrAssert_(actor.role==='Admin'||!old||['User','HOD'].indexOf(hrRole_(old[4]))!==-1,'Only Admin can edit HR or Admin accounts.');return payload;}
+  const role=hrRole_(payload.role || (old&&old[4]));
+  hrAssert_(['User','HOD','HR','Admin'].indexOf(role)!==-1,'Select User, HOD, HR or Admin.');
+  if(actor.role!=='Admin') {
+    hrAssert_(!old||['User','HOD'].indexOf(hrRole_(old[4]))!==-1,'Only Admin can edit HR or Admin accounts.');
+    hrAssert_(old?role===hrRole_(old[4]):role==='User','Only Admin can assign or change roles.');
+  }
+  if(old&&hrRole_(old[4])==='Admin'&&(role!=='Admin'||payload.status==='Resigned'))
+    hrAssert_(rows.slice(1).some(r=>hrName_(r[0])!==name&&r[1]!=='Resigned'&&hrRole_(r[4])==='Admin'),'Keep at least one active Admin.');
+  hrAssert_(['Active','Resigned'].indexOf(payload.status||'Active')!==-1,'Invalid employment status.');
+  const username=String(payload.username||'').trim();
+  hrAssert_(username,'Username is required.');
+  hrAssert_(!rows.slice(1).some(r=>hrName_(r[0])!==name&&String(r[2]).trim().toLowerCase()===username.toLowerCase()),'Username already exists.');
+  if(!old)hrAssert_(String(payload.password||'').length>=8,'New accounts require a password of at least 8 characters.');
+  if(old&&payload.version!=null)hrAssert_(Number(payload.version)===(Number(old[30])||1),'Employee changed. Refresh and try again.');
+  const fields=['employeeNo','companyId','departmentId','manager','jobTitle','location'];
+  const result=Object.assign({},payload,{name,username,role});
+  fields.forEach((k,i)=>result[k]=String(payload[k]===undefined?(old&&old[24+i]||''):payload[k]).trim());
+  result.employeeNo=result.employeeNo||Utilities.getUuid(); result.manager=hrName_(result.manager);
+  hrAssert_(!rows.slice(1).some(r=>hrName_(r[0])!==name&&r[24]===result.employeeNo),'Employee ID already exists.');
+  if(old&&old[24])hrAssert_(result.employeeNo===old[24],'Employee ID cannot be changed.');
+  if(result.companyId)hrAssert_(hrRows_('companies').some(r=>r.id===result.companyId),'Select a valid company.');
+  if(result.departmentId)hrAssert_(hrRows_('departments').some(r=>r.id===result.departmentId&&r.companyId===result.companyId),'Department must belong to the selected company.');
+  if(result.manager)hrAssert_(result.manager!==name&&hrDirectory_().some(r=>r.name===result.manager&&r.status!=='Resigned'&&hrManager_(r)),'Select another active HOD, HR or Admin as manager.');
+  const seen=[name]; let manager=result.manager;
+  let steps=0;
+  while(manager && steps < rows.length){
+    steps++;
+    const row=rows.slice(1).find(r=>hrName_(r[0])===manager);
+    const nextManager=row ? hrName_(row[27]) : '';
+    if(nextManager === name){
+      hrAssert_(false, 'Reporting lines cannot contain a cycle.');
+    }
+    if(!nextManager || nextManager === manager || seen.indexOf(nextManager) !== -1){
+      break;
+    }
+    seen.push(manager);
+    manager = nextManager;
+  }
+  result.jobTitleId=String(payload.jobTitleId===undefined?(old&&old[32]||''):payload.jobTitleId).trim();
+  result.gradeId='';
+  if(result.jobTitleId){const job=hrRows_('jobTitles').find(j=>j.id===result.jobTitleId);hrAssert_(job&&job.availability==='Active','Select an active job title.');hrAssert_(hrRows_('jobGrades').some(g=>g.id===job.gradeId&&g.availability==='Active'),'Selected job grade is inactive.');result.jobTitle=job.title;result.gradeId=job.gradeId;}
+  else if(old&&old[32])result.jobTitle='';
+  result.version=(Number(old&&old[30])||0)+1;
+  return result;
+}
+// Run once from the Apps Script editor after replacing the deployment code.
+function setupHrBackend() {
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    requestSpreadsheet_=null;const ss=getSpreadsheet_(),staff=ss.getSheetByName('Staff');
+    hrAssert_(!!staff,'Existing Staff sheet is required.');
+    if(staff.getMaxColumns()<34)staff.insertColumnsAfter(staff.getMaxColumns(),34-staff.getMaxColumns());
+    const actual=staff.getRange(1,25,1,10).getValues()[0];
+    actual.forEach((v,i)=>hrAssert_(!v||v===EMPLOYEE_HEADERS_[i],'Unexpected Staff column '+(i+25)+'. No columns overwritten.'));
+    staff.getRange(1,25,1,10).setValues([EMPLOYEE_HEADERS_]);
+    const rows=hrStaffRows_();
+    rows.slice(1).forEach((r,i)=>{if(!r[0])return;const values=Array.from({length:10},(_,j)=>r[24+j]||'');values[0]=values[0]||Utilities.getUuid();values[6]=Number(values[6])||1;staff.getRange(i+2,25,1,10).setValues([values]);});
+    Object.keys(HR_MODULES).filter(m=>m!=='profiles').concat(['audit']).forEach(m=>hrSheet_(m,true));
+    hrSeedClaimTypes_();
+    hrSyncJobTitles_();
+    hrProfiles_().forEach(p=>hrSyncAssignedResources_(p.employee));
+    staff.setFrozenRows(1);
+    return {status:'success',message:'Employee master and all HR registers ready.',spreadsheetUrl:ss.getUrl()};
+  } finally {lock.releaseLock();requestSpreadsheet_=null;}
+}
+
+function hrLeaveOverview_(actor) {
+  const row=hrStaffRows_().slice(1).find(r=>hrName_(r[0])===actor.name);
+  hrAssert_(!!row,'Employee not found.');
+  const result=JSON.parse(handleLogin({username:row[2]||row[8],password:row[3]}).getContent());
+  hrAssert_(result.status==='success'&&hrName_(result.user.name)===actor.name,'Unable to calculate your leave balance.');
+  const u=result.user,adj=hrLeaveAdjustments_(actor.name,new Date().getFullYear());
+  return jsonResponse({status:'success',data:{alEntitlement:u.alEntitlement,mcEntitlement:u.mcEntitlement,alBalance:u.alBalance+adj.Annual,mcBalance:u.mcBalance+adj.Medical}});
+}
+
+function hrSyncAssignedResources_(employee) {
+  const sheet=getSpreadsheet_().getSheetByName('Staff'),rows=hrStaffRows_();
+  const index=rows.findIndex((r,i)=>i>0&&hrName_(r[0])===hrName_(employee));if(index<1)return;
+  const resources=hrRows_('resources');
+  const summary=hrRows_('resourceAssignments').filter(r=>r.employee===hrName_(employee)&&r.status==='Assigned').map(a=>{const r=resources.find(r=>r.id===a.resourceId);return r?(r.code+' — '+r.title):a.resourceId;}).join(' | ');
+  sheet.getRange(index+1,32).setValue(summary);
+}
+function hrSeedClaimTypes_() {
+  if(hrRows_('claimTypes').length)return;
+  ['Medical','Travel','Mileage','Accommodation','Other'].forEach(title=>hrWrite_('claimTypes',{id:'type-'+title.toLowerCase(),code:title.toUpperCase(),title,availability:'Active',status:'Active'},{name:'SYSTEM'},null,'Initial setup'));
+}
+
+function hrSyncJobTitles_(){
+  const jobs=hrRows_('jobTitles'),sheet=getSpreadsheet_().getSheetByName('Staff');
+  hrStaffRows_().slice(1).forEach((r,i)=>{if(!r[0]||!r[32])return;const job=jobs.find(j=>j.id===r[32]);if(!job)return;if(r[28]!==job.title||r[33]!==job.gradeId){sheet.getRange(i+2,29).setValue(job.title);sheet.getRange(i+2,34).setValue(job.gradeId);sheet.getRange(i+2,31).setValue((Number(r[30])||1)+1);}});
+}
+function hrPolicyForGrade_(policies,profile){
+  if(!policies.length)return null;
+  const policy=profile&&(policies.find(p=>p.gradeId&&p.gradeId===profile.gradeId)||policies.find(p=>!p.gradeId));
+  hrAssert_(!!policy,'No policy covers this employee job grade. Assign a job title/grade or configure an all-grades policy.');
+  return policy;
+}
+function hrResourceLimit_(record){
+  const profile=hrProfiles_().find(p=>p.employee===record.employee),resources=hrRows_('resources'),resource=resources.find(r=>r.id===record.resourceId);
+  if(!profile||!resource)return;
+  const candidates=hrRows_('resourcePolicies').filter(p=>p.companyId===profile.companyId&&p.category===resource.category);
+  const policy=hrPolicyForGrade_(candidates,profile);if(!policy)return;
+  const active=hrRows_('resourceAssignments').filter(a=>a.id!==record.id&&a.employee===record.employee&&a.status==='Assigned').map(a=>resources.find(r=>r.id===a.resourceId)).filter(r=>r&&r.category===resource.category);
+  hrAssert_(active.length+1<=policy.maxAssigned,'Resource quantity exceeds the employee job-grade limit.');
+  if(policy.maxValue>0){hrAssert_(active.concat([resource]).every(r=>Number(r.assetValue)>0),'Set asset values for all assigned resources before enforcing the value cap.');hrAssert_(active.reduce((sum,r)=>sum+Number(r.assetValue),0)+Number(resource.assetValue)<=policy.maxValue,'Resource value exceeds the employee job-grade limit.');}
+  record.gradeId=profile.gradeId||'';record.policyId=policy.id;
+}

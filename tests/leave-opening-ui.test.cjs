@@ -1,0 +1,40 @@
+const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
+const bundle=fs.readdirSync('dist/assets').find(x=>/^index-[^.]+\.js$/.test(x));
+const code=fs.readFileSync('dist/assets/'+bundle,'utf8').replace(/export\s*\{[^}]*\};?\s*$/,'');
+const wait=()=>new Promise(r=>setTimeout(r,200));
+(async()=>{
+ const dom=new JSDOM('<div id="app"></div>',{url:'https://test.web.app/',runScripts:'dangerously',pretendToBeVisual:true}),w=dom.window,calls=[],errors=[];
+ let testHistory=true; const alerts=[];w.alert=message=>alerts.push(message); const user={name:'TEST HR',role:'HR'};w.addEventListener('error',e=>errors.push(e.message));
+ w.fetch=async(url,opt)=>{const {action,payload}=JSON.parse(opt.body);calls.push({action,payload});let data=[];
+ if(action==='hrBootstrap')data={actor:user,records:{leaveOpeningBalances:[]},employees:[{...user,status:'Active'}],audit:[]};
+ if(action==='leaveOverview')data={alBalance:null,mcBalance:8,leaveBalances:[{category:'Annual',balance:null},{category:'Medical',balance:8,openingBalance:10,used:2,adjustments:0,effectiveDate:'2026-10-13'},{category:'Hospitalisation',balance:60,openingBalance:60,used:0}],leaveEvents:[{category:'Marriage',daysPerEvent:7,conditions:'Confirmed, one year of service'},{category:'Compassionate',daysPerEvent:4,conditions:'Confirmed, eligible family member'}]};
+ if(action==='getLeaveData')data=[{id:'TEST1',name:user.name,type:'NPL',start:'2099-10-09',end:'2099-10-12',days:4,status:'Pending',reason:'Excluded dummy history',isTestHistory:testHistory}];
+ if(action==='submitLeave')return {json:async()=>({status:'error',message:'Submission reached backend'})};
+ if(action==='getStaff')data={};
+ if(action==='getBootstrap')data={staff:{status:'success',data:{}},holidays:{status:'success',data:[]},data:{status:'success',data:[]},attendance:{status:'success',data:[]},lockedMonths:{status:'success',data:{}},leaves:{status:'success',data:[]}};
+ return {json:async()=>action==='login'?{status:'success',user,sessionToken:'mock'}:{status:'success',data}};};
+ w.ResizeObserver=class{observe(){}disconnect(){}};w.eval('"use strict";\n'+code);const q=s=>w.document.querySelector(s),set=(s,v)=>{q(s).value=v;q(s).dispatchEvent(new w.Event('input',{bubbles:true}));q(s).dispatchEvent(new w.Event('change',{bubbles:true}));};await wait();
+ set('#loginUser','test');set('#loginPass','pass');q('#btnLogin').click();await wait();
+ q('[data-page="staff-portal"]').click();await wait();
+ assert.equal(q('#alBalanceDisplay').textContent,'—');assert.match(q('#alEntitlementDisplay').textContent,/opening balance required/);
+ assert.equal(q('#mcBalanceDisplay').textContent,'8');assert.match(q('#mcEntitlementDisplay').textContent,/10 opening days · 2 used/);
+ assert.match(q('#leave-other-balances').textContent,/Hospitalisation.*60/);
+ assert.match(q('#leave-event-guidance').textContent,/not yearly leave balances/);assert.match(q('#leave-event-list').textContent,/Marriage7 consecutive calendar days per event/);
+ assert.match(q('#leaveType option[value="RPL"]').textContent,/Replacement/);
+ assert.equal(q('#myLeavePending').textContent,'0');assert.doesNotMatch(q('#myLeaveTableBody').textContent,/Excluded dummy history/);
+ set('#leaveType','NPL');set('#leaveStart','2099-10-09');set('#leaveEnd','2099-10-12');set('#leaveReason','New genuine request');q('#btnSubmitLeave').click();await wait();assert.equal(calls.filter(c=>c.action==='submitLeave').length,1,'Dummy history must not block submission');
+ testHistory=false;q('#btnSubmitLeave').click();await wait();assert.equal(calls.filter(c=>c.action==='submitLeave').length,1,'Genuine overlapping request must block submission');assert.match(alerts.at(-1),/Overlapping dates/);
+ q('[data-hr-module="leaveOpeningBalances"]').click();await wait();q('#hr-workspace .hr-section-title .btn-primary').click();await wait();
+ assert.equal(q('#hr-historyMode').value,'');assert.equal(q('#hrRecordDialog form').checkValidity(),false);
+ set('#hr-year','2026');set('#hr-category','Hospitalisation');set('#hr-effectiveDate','2026-10-13');set('#hr-days','2');set('#hr-title','HR verified allocation');set('#hr-historyMode','Exclude existing test records');
+ assert.equal(q('#hrRecordDialog form').checkValidity(),true);
+ q('#hrRecordDialog form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait();
+ const saved=calls.find(x=>x.action==='hrSave');assert.equal(saved.payload.module,'leaveOpeningBalances');assert.equal(saved.payload.record.historyMode,'Exclude existing test records');assert.equal(saved.payload.record.category,'Hospitalisation');assert.equal(Number(saved.payload.record.days),2);
+ // Exercise calendar counting with a public holiday and weekend in a fresh DOM.
+ const calcDom=new JSDOM('<input id="leaveStart"><input id="leaveEnd"><input id="leaveDays"><select id="leaveType"><option>HPL</option><option>CPL</option><option>MRL</option><option>MTL</option><option>PL</option><option>AL</option></select><select id="halfDaySelect"><option value="1">Full</option></select><span id="leaveCalcNote"></span>',{runScripts:'outside-only'});
+ const cw=calcDom.window;cw.$=require('jquery')(cw);const dashboard=fs.readFileSync('src/services/dashboard.js','utf8');
+ cw.eval("const holidays=[{date:'2026-10-10'}];"+dashboard.slice(dashboard.indexOf('    function calculateLeaveDays()'),dashboard.indexOf('    function handleLeaveFileUpload')));
+ for(const type of ['HPL','CPL','MRL','MTL','PL']){cw.$('#leaveType').val(type);cw.$('#leaveStart').val('2026-10-09');cw.$('#leaveEnd').val('2026-10-12');cw.calculateLeaveDays();assert.equal(cw.$('#leaveDays').val(),'4',type);assert.equal(cw.$('#halfDaySelect').css('display'),'none');cw.$('#leaveEnd').val('2026-10-09');cw.calculateLeaveDays();assert.equal(cw.$('#leaveDays').val(),'1');assert.equal(cw.$('#halfDaySelect').css('display'),'none');}
+ cw.$('#leaveType').val('AL');cw.calculateLeaveDays();assert.notEqual(cw.$('#halfDaySelect').css('display'),'none');calcDom.window.close();
+ assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: generalized balances distinguish missing from zero; event durations separate; HR opening record requires explicit history choice and submits exact allocation.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,34 @@
+const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
+const bundle=fs.readdirSync('dist/assets').find(x=>/^index-[^.]+\.js$/.test(x));
+const code=fs.readFileSync('dist/assets/'+bundle,'utf8').replace(/export\s*\{[^}]*\};?\s*$/,'');
+const wait=()=>new Promise(r=>setTimeout(r,450));
+(async()=>{for(const role of ['User','HOD','HR','Admin']){
+ const dom=new JSDOM('<div id="app"></div>',{url:'https://test.web.app/',runScripts:'dangerously',pretendToBeVisual:true}),w=dom.window,errors=[],calls=[];
+ const user={name:'TEST PERSON',role};w.addEventListener('error',e=>errors.push(e.message));
+ w.fetch=async(url,opt)=>{const {action,payload}=opt&&opt.body?JSON.parse(opt.body):{};calls.push({action,payload});let data=[];
+ if(action==='hrBootstrap')data={actor:user,records:{},employees:[{...user,status:'Active'}],audit:[]};
+ if(action==='leaveOverview')data={alBalance:12,mcBalance:14,alEntitlement:14,mcEntitlement:14};
+ if(action==='getLeaveData')data=[{id:'L1',name:user.name,type:'AL',start:'2099-10-20',end:'2099-10-21',days:2,status:'Pending',reason:'Family trip',rowIndex:2},{id:'L2',name:'OTHER PERSON',type:'AL',start:'2099-11-01',end:'2099-11-01',days:1,status:'Approved',reason:'Private reason',rowIndex:3}];
+ if(action==='submitLeave')return {json:async()=>({status:'error',message:'Test submission failure'})};
+ if(action==='getStaff')data={};
+ if(action==='getBootstrap')data={staff:{status:'success',data:{}},holidays:{status:'success',data:[]},data:{status:'success',data:[]},attendance:{status:'success',data:[]},lockedMonths:{status:'success',data:{}},leaves:{status:'success',data:[]}};
+ return {json:async()=>action==='login'?{status:'success',user,sessionToken:'mock'}:{status:'success',data}};};
+ w.ResizeObserver=class{observe(){}disconnect(){}};w.eval('"use strict";\n'+code);const q=s=>w.document.querySelector(s);await wait();
+ q('#loginUser').value='test';q('#loginPass').value='pass';q('#btnLogin').click();await wait();
+ assert.equal(q('#pageTitle').textContent,'Overview',role);assert.equal(q('#summary-dashboard').style.display,'none');
+ assert.match(q('#accountMenuButton').textContent,/TEST PERSON/);assert.match(q('#accountMenuButton').textContent,new RegExp(role==='Admin'?'Superadmin':role));
+ assert.equal(w.document.querySelectorAll('#sidebarMenu details[open]').length,0);assert.doesNotMatch(q('#sidebarMenu').textContent,/Tasks|Onboarding/);assert.doesNotMatch(w.document.body.textContent,/SQHR|Setar Quay|SETAR QUAY/);
+ const summaries=[...w.document.querySelectorAll('#sidebarMenu summary')].map(x=>x.textContent);assert.ok(summaries.includes('My Workspace'));
+ assert.equal(summaries.includes('My Team'),role!=='User');assert.equal(summaries.includes('HR Operations'),['HR','Admin'].includes(role));
+ const payroll=q('[data-page="summary-dashboard"]');assert.equal(Boolean(payroll),['HR','Admin'].includes(role));
+ assert.equal(Boolean(q('[data-hr-module="cycles"]')),['HR','Admin'].includes(role));
+ assert.equal(Boolean(q('[data-hr-module="reports"]')),['HR','Admin'].includes(role));
+ const mine=q('[data-hr-module="claims"][data-scope="personal"]');assert.ok(mine);mine.click();await wait();assert.equal(q('#pageTitle').textContent,'My Claims');assert.equal(calls.filter(x=>x.action==='hrBootstrap').at(-1).payload.scope,'personal');
+ if(role==='HOD'){q('[data-hr-module="claims"][data-scope="team"]').click();await wait();assert.equal(q('#pageTitle').textContent,'Claim Reviews');assert.equal(calls.filter(x=>x.action==='hrBootstrap').at(-1).payload.scope,'team');assert.equal(q('.hr-section-title .btn-primary'),null);}
+ q('[data-page="staff-portal"]').click();await wait();assert.equal(q('#alBalanceDisplay').textContent,'12');assert.equal(q('#myLeavePending').textContent,'1');assert.match(q('#myLeaveTableBody').textContent,/Family trip/);assert.doesNotMatch(q('#myLeaveTableBody').textContent,/Private reason/);q('#leaveSearch').value='not found';q('#leaveSearch').dispatchEvent(new w.Event('input',{bubbles:true}));assert.match(q('#myLeaveTableBody').textContent,/No requests match/);
+ q('#leaveStart').value='2099-12-01';q('#leaveEnd').value='2099-12-01';q('#leaveDays').value='1';q('#leaveReason').value='Retain this draft';q('#btnSubmitLeave').click();await wait();assert.match(q('#leaveFeedback').textContent,/Test submission failure/);assert.equal(q('#leaveReason').value,'Retain this draft');assert.equal(q('#btnSubmitLeave').disabled,false);
+ q('#accountMenuButton').click();await wait();assert.equal(q('#accountMenuButton').getAttribute('aria-expanded'),'true');q('#accountProfile').click();await wait();assert.equal(q('#pageTitle').textContent,'My Profile');assert.equal(q('#accountMenuPanel'),null);
+ q('#accountMenuButton').click();await wait();q('#accountLogout').click();await wait();assert.equal(w.sessionStorage.getItem('hrPortalToken'),null);assert.equal(q('#accountMenuButton'),null);assert.equal(q('#loginScreen').style.display,'flex');
+ assert.deepEqual(errors,[],role);dom.window.close();
+ }console.log('PASS: four-role navigation, default Overview, hidden HR menus, My/Team scope, account name/role, profile and logout.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

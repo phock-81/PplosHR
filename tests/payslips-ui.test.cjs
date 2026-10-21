@@ -1,0 +1,48 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const {JSDOM} = require('jsdom');
+const dom = new JSDOM('<body></body>', {url:'https://test.web.app', runScripts:'outside-only'});
+const w = dom.window;
+w.$ = require('jquery')(w);
+const template = fs.readFileSync('src/components/PayrollDashboard.vue','utf8');
+w.document.body.innerHTML = template.slice(template.indexOf('<div id="payslips-portal"'), template.indexOf('<div id="my-profile"'));
+let result, saved, rejectPdf = false, deferred;
+w.renderStaffFolder=()=>{};
+w.apiPost = async () => deferred ? await deferred : result;
+w.html2pdf = () => ({set(options) { this.options = options; return this; }, from(element) { this.element=element; return this; }, async outputPdf() { return new w.Blob(['pdf'],{type:'application/pdf'}); }, async save() { if(rejectPdf) throw Error('PDF failure'); saved={filename:this.options.filename, period:this.element.querySelector('[id=ps-period]').textContent, nett:this.element.querySelector('[id=ps-nett]').textContent}; }});
+const source = fs.readFileSync('src/services/dashboard.js','utf8');
+w.eval(`let staffSettings={'OTHER STAFF':{}},staffPayslips=[], payslipRequest=0, payslipPrinting=false; const currentUser={name:'TEST PERSON'}; window.payslipUser=currentUser;\n` + source.slice(source.indexOf('    async function fetchPayslips()'), source.indexOf('    function handleLeaveTypeChange()')).replace("const html2pdf = (await import('html2pdf.js')).default;",'const html2pdf = window.html2pdf;'));
+const $ = w.$;
+const record = (month,nettPay) => ({name:'TEST PERSON',month,nettPay,basic:nettPay});
+(async()=>{
+ result={status:'success',data:[record('2026-08',1000),record('2026-09',1200),{...record('2026-10',3000),name:'OTHER'}]};
+ await w.fetchPayslips();
+ assert.equal($('#payslip-list-body tr').length,2);
+ assert.match($('#payslip-list-body tr').first().text(),/SEP-2026.*1,200.00/);
+ assert.equal($('#payslip-print-section').css('display'),'none');
+ $('#payslip-list-body tr').last().find('button').first().trigger('click');
+ assert.equal($('#ps-period').text(),'END-AUG-2026');assert.equal($('#ps-nett').text(),'1,000.00');
+ assert.equal(w.document.activeElement.id,'payslip-detail-title');
+ assert.equal($('#ps-al-taken').text(),'—');assert.equal($('#ps-al-bal').text(),'—');
+ w.eval("window.payslipUser.alEntitlement=99; window.payslipUser.leaveBalances=[{category:'Annual',openingBalance:12,balance:10,used:2}];");
+ w.renderSelectedPayslip('2026-08');assert.equal($('#ps-al-taken').text(),'2.00');assert.equal($('#ps-al-bal').text(),'10.00');assert.equal($('#ps-mc-taken').text(),'—');
+ w.closePayslip();assert.equal($('#payslip-print-section').css('display'),'none');
+ await w.printPayslip('2026-09',$('#payslip-list-body tr').first().find('button').last()[0]);
+ assert.deepEqual(saved,{filename:'SEP_2026_TEST_PERSON.pdf',period:'END-SEP-2026',nett:'1,200.00'});
+ result={status:'success',staffFolderUrl:'https://drive.google.com/drive/folders/test'};
+ let archivePayload;w.apiPost=async(action,payload)=>{archivePayload={action,payload};return result;};
+ await w.printPayslip('2026-09',null,{records:[{...record('2026-09',800),name:'OTHER STAFF'}],profile:{icNo:'OTHER-IC'}});
+ assert.equal(archivePayload.action,'staffDocumentUpload');assert.equal(archivePayload.payload.name,'OTHER STAFF');assert.equal(archivePayload.payload.category,'payslip');assert.equal(archivePayload.payload.fileData,'cGRm');assert.equal($('#ps-ic').text(),'OTHER-IC');
+ w.apiPost=async()=>deferred?await deferred:result;
+ rejectPdf=true;await w.printPayslip('2026-08',$('#payslip-list-body tr').last().find('button').last()[0]);
+ assert.match($('#payslip-error').text(),/Could not generate/);assert.equal($('#payslip-list button:disabled').length,0);
+ assert.equal(w.document.querySelectorAll('#payslip-print-section').length,1);
+ result={status:'error'};await w.fetchPayslips();assert.match($('#payslip-error').text(),/Could not load/);assert.equal($('#payslip-list-body tr').length,0);
+ result={status:'success',data:[]};await w.fetchPayslips();assert.notEqual($('#no-payslip-msg').css('display'),'none');assert.equal($('#payslip-error').css('display'),'none');assert.match($('#no-payslip-msg').text(),/No payslips available/);
+ let resolve;deferred=new Promise(r=>resolve=r);const request=w.fetchPayslips();assert.match($('#payslip-status').text(),/Loading/);assert.equal($('#refreshPayslips').prop('disabled'),true);resolve(result);await request;assert.equal($('#refreshPayslips').prop('disabled'),false);
+ assert.doesNotMatch(fs.readFileSync('src/components/InductionBenefits.vue','utf8'),/FAM-23\/G, pages/);
+ console.log('PASS: payslip listing sorts and filters records; row View and PDF use correct period; empty, loading, API failure, PDF failure and cleanup verified.');
+ dom.window.close();
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+

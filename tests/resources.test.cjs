@@ -1,0 +1,27 @@
+const {runtime}=require('./backend.test.cjs'),fs=require('node:fs'),assert=require('node:assert/strict');
+const r=runtime(fs.readFileSync('backend/GAS_payroll.js','utf8'));
+function employee(name,role){const row=Array(32).fill('');Object.assign(row,{0:name,1:'Active',2:name,3:'test-password',4:role,21:14,22:14,23:'[]',24:'ID-'+name,30:1});return row;}
+r.set('Staff',[Array(32).fill('header'),employee('HR','HR'),employee('ALICE','User'),employee('BOB','User')]);r.set('Leave',[Array(12).fill('header'),['L1','BOB','AL','2026-11-01','2026-11-01',1,'','','Approved']]);
+const tokens={};for(const who of ['HR','ALICE','BOB'])tokens[who]=r.request('login',{username:who,password:'test-password'}).sessionToken;
+const req=(who,action,payload={})=>r.request(action,payload,tokens[who]);const ok=v=>{assert.equal(v.status,'success',v.message);return v.data;};
+const save=(who,module,record)=>req(who,'hrSave',{module,record});
+const resource=ok(save('HR','resources',{code:'LAP-01',title:'BIM Laptop',category:'Laptop',availability:'Available'}));
+assert.equal(save('ALICE','resourceAssignments',{employee:'ALICE',resourceId:resource.id,date:'2026-10-13'}).status,'error');
+const assignment=ok(save('HR','resourceAssignments',{employee:'ALICE',resourceId:resource.id,date:'2026-10-13',condition:'Good'}));
+assert.equal(assignment.status,'Assigned');assert.equal(r.sheets.Staff.rows[2][31],'LAP-01 — BIM Laptop');
+assert.equal(save('HR','resourceAssignments',{employee:'BOB',resourceId:resource.id,date:'2026-10-13'}).status,'error');
+assert.equal(save('ALICE','bookings',{employee:'ALICE',resourceId:resource.id,title:'Meeting',start:'2026-10-15T09:00',end:'2026-10-15T10:00'}).status,'error');
+assert.equal(ok(req('ALICE','hrBootstrap',{scope:'personal'})).records.resourceAssignments.length,1);assert.equal(ok(req('BOB','hrBootstrap',{scope:'personal'})).records.resourceAssignments.length,0);
+assert.equal(req('ALICE','hrTransition',{module:'resourceAssignments',id:assignment.id,version:1,command:'returnResource'}).status,'error');
+ok(req('HR','hrTransition',{module:'resourceAssignments',id:assignment.id,version:1,command:'returnResource',comments:'Returned in good condition'}));assert.equal(r.sheets.Staff.rows[2][31],'');
+ok(save('HR','resourceAssignments',{employee:'BOB',resourceId:resource.id,date:'2026-10-14'}));assert.equal(r.sheets.Staff.rows[3][31],'LAP-01 — BIM Laptop');
+const claimType=ok(save('HR','claimTypes',{code:'PARK',title:'Parking',availability:'Active'}));
+ok(save('ALICE','claims',{employee:'ALICE',category:'Parking',title:'Parking ticket',receiptNo:'P1',date:'2026-10-13',amount:8}));
+assert.equal(save('ALICE','claimTypes',{code:'X',title:'Other',availability:'Active'}).status,'error');
+ok(req('HR','hrSave',{module:'claimTypes',id:claimType.id,version:1,record:{code:'PARK',title:'Parking',availability:'Inactive'}}));
+assert.equal(save('ALICE','claims',{employee:'ALICE',category:'Parking',title:'Inactive',receiptNo:'P2',date:'2026-10-13',amount:5}).status,'error');
+assert.equal(ok(req('HR','getLeaveData',{scope:'personal'})).length,0);
+assert.equal(ok(req('BOB','leaveOverview')).alBalance,13,'Backend captured balance is followed when no opening balance recorded');
+ok(save('HR','leaveOpeningBalances',{employee:'BOB',year:2026,category:'Annual',effectiveDate:'2026-01-01',days:14,historyMode:'Keep existing records after effective date',title:'Verified test opening'}));
+assert.equal(ok(req('BOB','leaveOverview')).alBalance,13);
+console.log('PASS: HR resource assignment/return, Staff resource summary, ownership, duplicate/booking conflicts, configurable active claim types and personal leave scope/live balance.');

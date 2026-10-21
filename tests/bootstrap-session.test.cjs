@@ -1,0 +1,20 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const src=fs.readFileSync('src/components/PayrollDashboard.vue','utf8');
+const code=src.slice(src.indexOf('let mobileBootstrapPending'),src.indexOf('const { renderSummaryDashboard'));
+const waits=[];let token='A';let cleared=0;
+const ref=v=>({value:v});
+const context=vm.createContext({console,Date,localStorage:{getItem:()=>token},sessionStorage:{getItem:()=>token},showDossierModal:ref(false),showPersonalAttendance:ref(false),dossierTargetEmployee:ref(''),currentUser:ref(null),isMobile:ref(true),hrBootstrapRecords:ref({}),hrEmployees:ref([]),hrTeamLeave:ref([]),clearMobileSessionCache:()=>cleared++,apiPost:()=>new Promise(resolve=>waits.push(resolve))});
+vm.runInContext(code,context);
+const data=label=>({status:'success',data:{records:{label},employees:[{name:'TEST'}],teamLeave:[]}});
+const tick=()=>new Promise(r=>setImmediate(r));
+(async()=>{
+  context.handleSession({detail:{name:'TEST',role:'User'}});assert.equal(waits.length,1);
+  context.showPersonalAttendance.value=true;context.handleSession({detail:null});assert.equal(context.showPersonalAttendance.value,false,'logout closes personal attendance');token='B';context.handleSession({detail:{name:'TEST',role:'User'}});assert.equal(waits.length,2,'same employee/new session starts fresh request');
+  waits[0](data('old-session'));await tick();assert.equal(context.hrBootstrapRecords.value.label,undefined,'old session cannot populate UI');
+  const joined=context.refreshMobileBootstrap();assert.equal(waits.length,2,'old promise cleanup cannot remove new pending job');
+  waits[1](data('new-session'));await joined;assert.equal(context.hrBootstrapRecords.value.label,'new-session');
+  const older=context.refreshMobileBootstrap(true);const newer=context.refreshMobileBootstrap(true);assert.equal(waits.length,4);
+  waits[3](data('latest'));await newer;waits[2](data('older'));await older;assert.equal(context.hrBootstrapRecords.value.label,'latest','late refresh cannot overwrite newer data');
+  context.isMobile.value=false;context.handleSession({detail:{name:'TEST',role:'Admin'}});assert.equal(waits.length,4,'desktop does not start mobile bootstrap');assert.ok(cleared>=3);
+  console.log('PASS: bootstrap same-user relogin, pending cleanup identity, newest refresh wins, and desktop/mobile separation.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

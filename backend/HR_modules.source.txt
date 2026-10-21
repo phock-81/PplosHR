@@ -1,0 +1,1170 @@
+const HR_MODULES = {
+  "jobGrades": {
+    "label": "Job Grades",
+    "icon": "layers",
+    "group": "Organisation",
+    "admin": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Grade code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Grade name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "availability",
+        "label": "Availability",
+        "type": "select",
+        "options": [
+          "Active",
+          "Inactive"
+        ],
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Description",
+        "type": "textarea"
+      }
+    ]
+  },
+  "jobTitles": {
+    "label": "Job Title Library",
+    "icon": "person-badge",
+    "group": "Organisation",
+    "admin": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Job code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Job title",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "gradeId",
+        "label": "Job grade",
+        "type": "ref",
+        "ref": "jobGrades",
+        "required": true
+      },
+      {
+        "key": "availability",
+        "label": "Availability",
+        "type": "select",
+        "options": [
+          "Active",
+          "Inactive"
+        ],
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Description",
+        "type": "textarea"
+      }
+    ]
+  },
+  "resourcePolicies": {
+    "label": "Resource Limits",
+    "icon": "sliders",
+    "group": "Administration",
+    "admin": true,
+    "fields": [
+      {
+        "key": "title",
+        "label": "Policy name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "companyId",
+        "label": "Company",
+        "type": "ref",
+        "ref": "companies",
+        "required": true
+      },
+      {
+        "key": "gradeId",
+        "label": "Job grade (blank = all grades)",
+        "type": "ref",
+        "ref": "jobGrades"
+      },
+      {
+        "key": "category",
+        "label": "Resource category",
+        "type": "select",
+        "options": [
+          "Vehicle",
+          "Room",
+          "Equipment",
+          "Laptop",
+          "Other"
+        ],
+        "required": true
+      },
+      {
+        "key": "maxAssigned",
+        "label": "Maximum active resources per employee",
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 1000
+      },
+      {
+        "key": "maxValue",
+        "label": "Total asset-value cap (RM; 0 = no value cap)",
+        "type": "number",
+        "min": 0
+      },
+      {
+        "key": "notes",
+        "label": "Policy notes",
+        "type": "textarea"
+      }
+    ]
+  },
+  "claimTypes": {
+    "label": "Claim Types",
+    "icon": "tags",
+    "group": "Administration",
+    "admin": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Type code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Claim type name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "availability",
+        "label": "Availability",
+        "type": "select",
+        "options": [
+          "Active",
+          "Inactive"
+        ],
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Guidance",
+        "type": "textarea"
+      }
+    ]
+  },
+  "resourceAssignments": {
+    "label": "Resource Assignments",
+    "icon": "person-workspace",
+    "group": "People",
+    "admin": true,
+    "immutable": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "resourceId",
+        "label": "Resource",
+        "type": "ref",
+        "ref": "resources",
+        "required": true
+      },
+      {
+        "key": "date",
+        "label": "Assigned date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "condition",
+        "label": "Condition at handover",
+        "type": "text"
+      },
+      {
+        "key": "notes",
+        "label": "Handover notes",
+        "type": "textarea"
+      }
+    ]
+  },
+  "companies": {
+    "label": "Companies",
+    "icon": "building",
+    "group": "Organisation",
+    "admin": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Company code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Company name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "registration",
+        "label": "Registration no.",
+        "type": "text"
+      },
+      {
+        "key": "address",
+        "label": "Address",
+        "type": "textarea"
+      },
+      {
+        "key": "epf",
+        "label": "Employer EPF no.",
+        "type": "text"
+      },
+      {
+        "key": "socso",
+        "label": "Employer SOCSO no.",
+        "type": "text"
+      },
+      {
+        "key": "tax",
+        "label": "Employer tax no.",
+        "type": "text"
+      }
+    ]
+  },
+  "departments": {
+    "label": "Departments",
+    "icon": "diagram-3",
+    "group": "Organisation",
+    "admin": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Department code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Department name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "companyId",
+        "label": "Company",
+        "type": "ref",
+        "ref": "companies",
+        "required": true
+      },
+      {
+        "key": "manager",
+        "label": "Department head",
+        "type": "staff"
+      }
+    ]
+  },
+  "profiles": {
+    "label": "Employee directory",
+    "icon": "person-badge",
+    "group": "Organisation",
+    "admin": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "companyId",
+        "label": "Company",
+        "type": "ref",
+        "ref": "companies",
+        "required": true
+      },
+      {
+        "key": "departmentId",
+        "label": "Department",
+        "type": "ref",
+        "ref": "departments",
+        "required": true
+      },
+      {
+        "key": "manager",
+        "label": "Approving manager",
+        "type": "staff"
+      },
+      {
+        "key": "jobTitle",
+        "label": "Job title",
+        "type": "text"
+      },
+      {
+        "key": "employeeNo",
+        "label": "Employee number",
+        "type": "text"
+      },
+      {
+        "key": "location",
+        "label": "Work location",
+        "type": "text"
+      }
+    ]
+  },
+  "claimPolicies": {
+    "label": "Claim Limits by Grade",
+    "icon": "sliders",
+    "group": "Administration",
+    "admin": true,
+    "fields": [
+      {
+        "key": "title",
+        "label": "Policy name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "companyId",
+        "label": "Company",
+        "type": "ref",
+        "ref": "companies",
+        "required": true
+      },
+      {
+        "key": "gradeId",
+        "label": "Job grade (blank = all grades)",
+        "type": "ref",
+        "ref": "jobGrades"
+      },
+      {
+        "key": "category",
+        "label": "Claim type",
+        "type": "select",
+        "options": [
+          "Medical",
+          "Travel",
+          "Mileage",
+          "Accommodation",
+          "Other"
+        ],
+        "source": "claimTypes",
+        "required": true
+      },
+      {
+        "key": "year",
+        "label": "Policy year",
+        "type": "number",
+        "required": true,
+        "min": 2000,
+        "max": 2100
+      },
+      {
+        "key": "receiptLimit",
+        "label": "Maximum per receipt (RM)",
+        "type": "number",
+        "required": true,
+        "min": 0
+      },
+      {
+        "key": "annualLimit",
+        "label": "Annual limit per employee (RM)",
+        "type": "number",
+        "required": true,
+        "min": 0
+      }
+    ]
+  },
+  "loans": {
+    "label": "Employee loans",
+    "icon": "wallet2",
+    "group": "Applications",
+    "self": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Loan purpose",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "date",
+        "label": "Requested date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "amount",
+        "label": "Principal (RM)",
+        "type": "number",
+        "required": true,
+        "min": 0.01
+      },
+      {
+        "key": "instalments",
+        "label": "Planned instalments",
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 120
+      },
+      {
+        "key": "notes",
+        "label": "Agreement / repayment notes",
+        "type": "textarea"
+      }
+    ]
+  },
+  "claims": {
+    "label": "Claims & reimbursement",
+    "icon": "receipt",
+    "group": "Applications",
+    "self": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "category",
+        "label": "Claim type",
+        "type": "select",
+        "options": [
+          "Medical",
+          "Travel",
+          "Mileage",
+          "Accommodation",
+          "Other"
+        ],
+        "source": "claimTypes",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Clinic / merchant / purpose",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "receiptNo",
+        "label": "Receipt number",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "date",
+        "label": "Receipt date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "amount",
+        "label": "Amount (RM)",
+        "type": "number",
+        "required": true,
+        "min": 0.01
+      },
+      {
+        "key": "evidenceUrl",
+        "label": "Receipt link",
+        "type": "url"
+      },
+      {
+        "key": "notes",
+        "label": "Remarks",
+        "type": "textarea"
+      }
+    ]
+  },
+  "resources": {
+    "label": "Resource catalogue",
+    "icon": "box-seam",
+    "group": "Applications",
+    "admin": true,
+    "public": true,
+    "fields": [
+      {
+        "key": "code",
+        "label": "Resource code",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Resource name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "category",
+        "label": "Type",
+        "type": "select",
+        "options": [
+          "Vehicle",
+          "Room",
+          "Equipment",
+          "Laptop",
+          "Other"
+        ],
+        "required": true
+      },
+      {
+        "key": "location",
+        "label": "Location",
+        "type": "text"
+      },
+      {
+        "key": "assetValue",
+        "label": "Asset value (RM)",
+        "type": "number",
+        "min": 0
+      },
+      {
+        "key": "availability",
+        "label": "Availability",
+        "type": "select",
+        "options": [
+          "Available",
+          "Maintenance"
+        ],
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Description",
+        "type": "textarea"
+      }
+    ]
+  },
+  "bookings": {
+    "label": "Resource bookings",
+    "icon": "calendar2-range",
+    "group": "Applications",
+    "self": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "resourceId",
+        "label": "Resource",
+        "type": "ref",
+        "ref": "resources",
+        "required": true
+      },
+      {
+        "key": "start",
+        "label": "Start",
+        "type": "datetime-local",
+        "required": true
+      },
+      {
+        "key": "end",
+        "label": "End",
+        "type": "datetime-local",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Purpose",
+        "type": "text",
+        "required": true
+      }
+    ]
+  },
+  "cycles": {
+    "label": "Appraisal cycles",
+    "icon": "calendar3",
+    "group": "Performance",
+    "admin": true,
+    "public": true,
+    "fields": [
+      {
+        "key": "title",
+        "label": "Cycle name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "start",
+        "label": "Start date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "end",
+        "label": "End date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "year",
+        "label": "Year",
+        "type": "number",
+        "required": true,
+        "min": 2000,
+        "max": 2100
+      }
+    ]
+  },
+  "appraisals": {
+    "label": "Performance appraisals",
+    "icon": "graph-up",
+    "group": "Performance",
+    "admin": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "cycleId",
+        "label": "Cycle",
+        "type": "ref",
+        "ref": "cycles",
+        "required": true
+      },
+      {
+        "key": "manager",
+        "label": "Reviewer",
+        "type": "staff"
+      },
+      {
+        "key": "title",
+        "label": "Objectives",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Success measures / development plan",
+        "type": "textarea"
+      }
+    ]
+  },
+  "tax": {
+    "label": "Tax-relief declarations",
+    "icon": "file-earmark-text",
+    "group": "Applications",
+    "self": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "year",
+        "label": "Assessment year",
+        "type": "number",
+        "required": true,
+        "min": 2000,
+        "max": 2100
+      },
+      {
+        "key": "category",
+        "label": "Relief category",
+        "type": "select",
+        "options": [
+          "Parent medical",
+          "Medical treatment",
+          "Lifestyle",
+          "Sports",
+          "Childcare",
+          "SSPN",
+          "Life insurance",
+          "Voluntary EPF",
+          "PRS / annuity",
+          "Education / medical insurance",
+          "EV charging",
+          "SOCSO",
+          "Other"
+        ],
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Declaration description",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "amount",
+        "label": "Declared amount (RM)",
+        "type": "number",
+        "required": true,
+        "min": 0.01
+      },
+      {
+        "key": "evidenceUrl",
+        "label": "Supporting document",
+        "type": "url"
+      },
+      {
+        "key": "notes",
+        "label": "Remarks",
+        "type": "textarea"
+      }
+    ]
+  },
+  "letters": {
+    "label": "Letters & correspondence",
+    "icon": "envelope-paper",
+    "group": "People",
+    "admin": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "category",
+        "label": "Letter type",
+        "type": "select",
+        "options": [
+          "Confirmation",
+          "Increment",
+          "Transfer",
+          "Memo",
+          "Offer",
+          "Other"
+        ],
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Subject",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "date",
+        "label": "Issue date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "notes",
+        "label": "Letter content",
+        "type": "textarea",
+        "required": true
+      }
+    ]
+  },
+  "recruitment": {
+    "label": "Recruitment pipeline",
+    "icon": "person-plus",
+    "group": "People",
+    "admin": true,
+    "fields": [
+      {
+        "key": "title",
+        "label": "Candidate name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "jobTitle",
+        "label": "Position",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "email",
+        "label": "Email",
+        "type": "email"
+      },
+      {
+        "key": "date",
+        "label": "Interview / target date",
+        "type": "date"
+      },
+      {
+        "key": "stage",
+        "label": "Stage",
+        "type": "select",
+        "options": [
+          "Applied",
+          "Shortlisted",
+          "Interview",
+          "Offer",
+          "Hired",
+          "Rejected"
+        ],
+        "required": true
+      },
+      {
+        "key": "evidenceUrl",
+        "label": "CV link",
+        "type": "url"
+      },
+      {
+        "key": "notes",
+        "label": "Interview notes",
+        "type": "textarea"
+      }
+    ]
+  },
+  "training": {
+    "label": "Training & certifications",
+    "icon": "mortarboard",
+    "group": "Performance",
+    "admin": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "title",
+        "label": "Course / certification",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "provider",
+        "label": "Provider",
+        "type": "text"
+      },
+      {
+        "key": "date",
+        "label": "Training date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "key": "expiry",
+        "label": "Certificate expiry",
+        "type": "date"
+      },
+      {
+        "key": "amount",
+        "label": "Cost (RM)",
+        "type": "number",
+        "min": 0
+      },
+      {
+        "key": "evidenceUrl",
+        "label": "Certificate link",
+        "type": "url"
+      },
+      {
+        "key": "notes",
+        "label": "Development goals",
+        "type": "textarea"
+      }
+    ]
+  },
+  "adjustments": {
+    "label": "Leave adjustments",
+    "icon": "calendar2-plus",
+    "group": "Administration",
+    "admin": true,
+    "immutable": true,
+    "fields": [
+      {
+        "key": "employee",
+        "label": "Employee",
+        "type": "staff",
+        "required": true
+      },
+      {
+        "key": "year",
+        "label": "Leave year",
+        "type": "number",
+        "required": true,
+        "min": 2000,
+        "max": 2100
+      },
+      {
+        "key": "category",
+        "label": "Leave type",
+        "type": "select",
+        "options": [
+          "Annual",
+          "Medical"
+        ],
+        "required": true
+      },
+      {
+        "key": "days",
+        "label": "Adjustment days (+ / −)",
+        "type": "number",
+        "required": true,
+        "min": -365,
+        "max": 365
+      },
+      {
+        "key": "title",
+        "label": "Reason / carry-forward reference",
+        "type": "text",
+        "required": true
+      }
+    ]
+  }
+};
+function hrAdmin_(actor) { return ['Admin','HR'].indexOf(actor.role)!==-1; }
+function hrManager_(actor) { return ['Admin','HR','HOD','Supervisor'].indexOf(actor.role) !== -1; }
+function hrName_(value) { return String(value || '').trim().toUpperCase(); }
+function hrIssueSession_(user) {
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  CacheService.getScriptCache().put('hr-session:' + token, JSON.stringify({name:hrName_(user.name), expires:Date.now()+21600000}), 21600);
+  return token;
+}
+function hrAuthenticate_(token) {
+  if (typeof token !== 'string' || token.length > 100) throw new Error('Please sign in again.');
+  const raw=CacheService.getScriptCache().get('hr-session:'+token);
+  if (!raw) throw new Error('Session expired. Please sign in again.');
+  const saved=JSON.parse(raw);
+  if(saved.expires<Date.now()) throw new Error('Session expired. Please sign in again.');
+  const rows=readSheet_(getSpreadsheet_().getSheetByName('Staff'), false);
+  const row=rows.slice(1).find(r=>hrName_(r[0])===saved.name);
+  if(!row || row[1]==='Resigned') throw new Error('Account is inactive.');
+  return {name:saved.name,role:hrRole_(row[4])};
+}
+function hrSheet_(module,create) {
+  const ss=getSpreadsheet_(),name='HR_'+module;
+  let sheet=ss.getSheetByName(name);
+  if(!sheet && create){sheet=ss.insertSheet(name);sheet.appendRow(['ID','Version','Employee','Status','Record JSON','Updated At','Updated By']);sheet.setFrozenRows(1);}
+  return sheet;
+}
+function hrRows_(module) {
+  if(module==='profiles')return hrProfiles_();
+  const sheet=hrSheet_(module,false);
+  if(!sheet || sheet.getLastRow()<2) return [];
+  return sheet.getRange(2,1,sheet.getLastRow()-1,7).getValues().map((r,i)=>{
+    const record=JSON.parse(r[4]);record._row=i+2;return record;
+  });
+}
+function hrPublic_(record) {const copy=Object.assign({},record);delete copy._row;return copy;}
+function hrCanSee_(module,r,actor) {
+  if(hrAdmin_(actor)) return true;
+  if(['resources','cycles','companies','departments','claimTypes','jobGrades','jobTitles'].indexOf(module)!==-1) return true;
+  if(module==='letters') return r.employee===actor.name && r.status==='Issued';
+  if(['claims','loans','bookings','appraisals'].indexOf(module)!==-1 && hrManager_(actor) && r.manager===actor.name) return true;
+  return r.employee===actor.name;
+}
+function hrDirectory_() {
+  return readSheet_(getSpreadsheet_().getSheetByName('Staff'),false).slice(1).filter(r=>r[0]).map(r=>({name:hrName_(r[0]),status:r[1]||'Active',role:hrRole_(r[4])}));
+}
+function hrBootstrap_(actor,options) {
+  const scope=(options&&options.scope)||'overview';
+  hrAssert_(['overview','personal','team','all'].indexOf(scope)!==-1,'Unknown workspace scope.');
+  if(scope==='all')hrAssert_(hrAdmin_(actor),'HR or Superadmin access required.');
+  if(scope==='team')hrAssert_(hrManager_(actor),'Team access requires HOD, HR or Superadmin.');
+  const shared=['companies','departments','resources','cycles','claimTypes','jobGrades','jobTitles'];
+  const records={};Object.keys(HR_MODULES).forEach(m=>records[m]=hrRows_(m).filter(r=>{
+    if(!hrCanSee_(m,r,actor))return false;
+    if(shared.indexOf(m)!==-1)return true;
+    if(scope==='personal')return r.employee===actor.name;
+    if(scope==='team')return r.employee!==actor.name&&(r.manager===actor.name);
+    return true;
+  }).map(hrPublic_));
+  const employees=hrDirectory_();
+  return jsonResponse({status:'success',data:{actor,employees:hrAdmin_(actor)&&scope!=='personal'?employees:employees.filter(r=>r.name===actor.name),records,audit:hrAdmin_(actor)&&(scope==='all'||(!options||!options.scope))?hrRows_('audit').filter(r=>r.module!=='lifecycle').slice(-500).reverse().map(hrPublic_):[]}});
+}
+
+function hrAssert_(ok,message){if(!ok)throw new Error(message);}
+function hrDate_(value,datetime){const s=String(value||'');hrAssert_(datetime?/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s):/^\d{4}-\d{2}-\d{2}$/.test(s),'Invalid date.');hrAssert_(!isNaN(Date.parse(s)),'Invalid date.');return s;}
+function hrValidate_(module,input,actor) {
+  const spec=HR_MODULES[module];hrAssert_(!!spec,'Unknown HR module.');
+  const record={};
+  spec.fields.forEach(f=>{
+    let value=input[f.key];
+    if(f.type==='number') {
+      if(value===''||value==null){hrAssert_(!f.required,f.label+' is required.');value=0;}
+      value=Number(value);hrAssert_(Number.isFinite(value),f.label+' must be a number.');
+      if(['amount','receiptLimit','annualLimit','assetValue','maxValue'].indexOf(f.key)!==-1)hrAssert_(Math.abs(value*100-Math.round(value*100))<0.00001&&value<=100000000,'Amounts must use at most two decimals.');
+      if(f.min!=null)hrAssert_(value>=f.min,f.label+' is too low.');if(f.max!=null)hrAssert_(value<=f.max,f.label+' is too high.');
+    } else {
+      value=String(value==null?'':value).trim();hrAssert_(value.length<=12000,f.label+' is too long.');
+      if(f.required)hrAssert_(value.length>0,f.label+' is required.');
+      if(value && f.type==='select'){const types=f.source?hrRows_(f.source):[];const choices=types.length?types.filter(r=>r.availability!=='Inactive').map(r=>r.title):f.options;hrAssert_(choices.indexOf(value)!==-1,'Invalid or inactive '+f.label+'.');}
+      if(value && ['date','datetime-local'].indexOf(f.type)!==-1)hrDate_(value,f.type==='datetime-local');
+      if(value && f.type==='url')hrAssert_(/^https:\/\/[^\s]+$/i.test(value),'Document links must use HTTPS.');
+      if(value && f.type==='email')hrAssert_(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),'Invalid email.');
+      if(f.type==='staff')value=hrName_(value);
+      if(value && f.type==='ref')hrAssert_(hrRows_(f.ref).some(r=>r.id===value),'Selected '+f.label+' no longer exists.');
+    }
+    record[f.key]=value;
+  });
+  const directory=hrDirectory_();spec.fields.filter(f=>f.type==='staff').forEach(f=>{if(record[f.key])hrAssert_(directory.some(s=>s.name===record[f.key]&&s.status!=='Resigned'),'Select an active '+f.label+'.');});
+  if(spec.self && !hrAdmin_(actor))record.employee=actor.name;
+  if(record.employee)hrAssert_(directory.some(s=>s.name===record.employee&&s.status!=='Resigned'),'Employee is inactive.');
+  if(record.manager)hrAssert_(directory.some(s=>s.name===record.manager&&['Admin','HR','HOD','Supervisor'].indexOf(s.role)!==-1),'Reviewer must be an Admin, Supervisor or HOD.');
+  if(record.departmentId)hrAssert_(hrRows_('departments').some(d=>d.id===record.departmentId&&d.companyId===record.companyId),'Department must belong to the selected company.');
+  if(record.start && record.end)hrAssert_(record.end>record.start,'End must be after start.');
+  if(record.year)hrAssert_(Number.isInteger(record.year),'Year must be a whole number.');
+  if(module==='adjustments')hrAssert_(record.days!==0,'Adjustment cannot be zero.');
+  if(module==='profiles')hrAssert_(record.manager!==record.employee,'An employee cannot be their own manager.');
+  return record;
+}
+function hrConflict_(record) {
+  hrAssert_(!hrRows_('resourceAssignments').some(r=>r.resourceId===record.resourceId&&r.status==='Assigned'),'Resource is assigned to an employee and cannot be booked.');
+  const resource=hrRows_('resources').find(r=>r.id===record.resourceId);
+  hrAssert_(resource&&resource.availability==='Available','Resource is unavailable.');
+  hrAssert_(!hrRows_('bookings').some(b=>b.id!==record.id&&b.resourceId===record.resourceId&&['Pending admin','Approved'].indexOf(b.status)!==-1&&record.start<b.end&&record.end>b.start),'Resource already booked for this time window.');
+}
+function hrAudit_(actor,module,record,action) {
+  const sheet=hrSheet_('audit',true),now=new Date().toISOString();
+  const log={id:Utilities.getUuid(),version:1,employee:record.employee||'',status:action,module,recordId:record.id,title:record.title||record.employee||'',actor:actor.name,updatedAt:now};
+  sheet.appendRow([log.id,1,log.employee,action,JSON.stringify(log),now,actor.name]);
+}
+function hrWrite_(module,record,actor,old,action) {
+  record.version=old?old.version+1:1;record.updatedAt=new Date().toISOString();record.updatedBy=actor.name;
+  const sheet=hrSheet_(module,true),row=[record.id,record.version,record.employee||'',record.status,JSON.stringify(record),record.updatedAt,actor.name];
+  if(old)sheet.getRange(old._row,1,1,7).setValues([row]);else sheet.appendRow(row);
+  if(module==='resourceAssignments')hrSyncAssignedResources_(record.employee);
+  if(module==='jobTitles')hrSyncJobTitles_();
+  if(module==='resources')hrProfiles_().forEach(p=>hrSyncAssignedResources_(p.employee));
+  hrAudit_(actor,module,record,action);return jsonResponse({status:'success',data:record});
+}
+function hrSave_(payload,actor) {
+  const module=payload.module,spec=HR_MODULES[module];hrAssert_(!!spec,'Unknown HR module.');
+  hrAssert_(module!=='profiles','Use Employee Management to edit the employee master.');
+  hrAssert_(hrAdmin_(actor)||spec.self,'Only HR administrators can create these records.');
+  const rows=hrRows_(module);
+  if(!payload.id&&payload.requestId){hrAssert_(/^[a-zA-Z0-9-]{8,100}$/.test(payload.requestId),'Invalid request reference.');const prior=rows.find(r=>r.id===payload.requestId);if(prior){hrAssert_(prior.createdBy===actor.name,'Request reference already exists.');return jsonResponse({status:'success',data:hrPublic_(prior)});}}
+  const old=payload.id?rows.find(r=>r.id===payload.id):null;
+  if(payload.id)hrAssert_(!!old,'Record not found.');
+  if(old){hrAssert_(payload.version===old.version,'Record changed. Refresh and try again.');hrAssert_(!spec.immutable,'Adjustments cannot be edited; add a reversing adjustment.');hrAssert_(hrAdmin_(actor)&&['Active','Draft','Open','Applied','Shortlisted','Interview','Offer','Hired','Rejected','Planned'].indexOf(old.status)!==-1,'Submitted records cannot be edited.');}
+  const record=hrValidate_(module,payload.record||{},actor);
+  record.id=old?old.id:(payload.requestId||Utilities.getUuid());record.createdBy=old?old.createdBy:actor.name;record.createdAt=old?old.createdAt:new Date().toISOString();
+  const profile=record.employee?hrRows_('profiles').find(r=>r.employee===record.employee):null;
+  if(['claims','loans'].indexOf(module)!==-1) {record.manager=profile?profile.manager:'';record.status=record.manager?'Pending manager':'Pending admin';}
+  else if(module==='bookings'){record.status='Pending admin';hrConflict_(record);}
+  else if(module==='appraisals'){record.status='Pending self';hrAssert_(hrRows_('cycles').some(c=>c.id===record.cycleId&&c.status==='Active'),'Cycle must be active.');if(!record.manager&&profile)record.manager=profile.manager||'';hrAssert_(record.manager!==record.employee,'Reviewer cannot be the employee.');hrAssert_(!rows.some(r=>r.id!==record.id&&r.employee===record.employee&&r.cycleId===record.cycleId),'An appraisal already exists for this employee and cycle.');}
+  else if(module==='tax')record.status='Submitted';
+  else if(module==='letters')record.status='Draft';
+  else if(module==='training')record.status='Planned';
+  else if(module==='adjustments')record.status='Posted';
+  else if(module==='recruitment')record.status=record.stage;
+  else record.status='Active';
+  if(module==='resourceAssignments'){hrResourceLimit_(record);record.employeeId=profile?profile.employeeNo:'';record.status='Assigned';hrAssert_(!hrRows_('resourceAssignments').some(r=>r.resourceId===record.resourceId&&r.status==='Assigned'),'Resource is already assigned. Record its return first.');hrAssert_(hrRows_('resources').some(r=>r.id===record.resourceId&&r.availability==='Available'),'Resource is unavailable.');hrAssert_(!hrRows_('bookings').some(r=>r.resourceId===record.resourceId&&['Approved','Pending admin'].indexOf(r.status)!==-1&&r.end>=record.date),'Resource has an active or upcoming booking. Resolve the booking first.');}
+  if(module==='claims') hrClaimLimit_(record);
+  if(module==='loans')hrAssert_(Number.isInteger(record.instalments),'Instalments must be a whole number.');
+  if(module==='claimPolicies')hrAssert_(!rows.some(r=>r.id!==record.id&&r.companyId===record.companyId&&r.category===record.category&&r.year===record.year&&(r.gradeId||'')===(record.gradeId||'')),'A policy already exists for this company, grade, type and year.');
+  if(['companies','departments','resources','claimTypes','jobGrades','jobTitles'].indexOf(module)!==-1)hrAssert_(!rows.some(r=>r.id!==record.id&&r.code.toLowerCase()===record.code.toLowerCase()),'Code already exists.');
+  if(module==='resourcePolicies'){hrAssert_(Number.isInteger(record.maxAssigned),'Resource quantity must be a whole number.');hrAssert_(!rows.some(r=>r.id!==record.id&&r.companyId===record.companyId&&r.category===record.category&&(r.gradeId||'')===(record.gradeId||'')),'A resource policy already exists for this company, grade and category.');}
+  if(module==='claimTypes'&&old&&old.title!==record.title)hrAssert_(!hrRows_('claims').concat(hrRows_('claimPolicies')).some(r=>r.category===old.title),'This type is already used. Make it inactive and create a new type instead of renaming it.');
+  if(module==='claimTypes')hrAssert_(!rows.some(r=>r.id!==record.id&&r.title.toLowerCase()===record.title.toLowerCase()),'Claim type name already exists.');
+  if(module==='profiles')hrAssert_(!rows.some(r=>r.id!==record.id&&r.employee===record.employee),'Employee organisation already exists; edit the existing record.');
+  return hrWrite_(module,record,actor,old,old?'Updated':'Created');
+}
+function hrTransition_(payload,actor) {
+  hrAssert_(!!HR_MODULES[payload.module],'Unknown or retired HR module.');
+  const module=payload.module,old=hrRows_(module).find(r=>r.id===payload.id);hrAssert_(!!old,'Record not found.');hrAssert_(payload.version===old.version,'Record changed. Refresh and try again.');
+  const r=hrPublic_(old),action=payload.command,admin=hrAdmin_(actor),manager=hrManager_(actor)&&r.manager===actor.name,self=r.employee===actor.name;
+  const decision=['approve','reject','paid','review'].indexOf(action)!==-1;
+  if(decision)hrAssert_(!self,'You cannot approve your own request.');
+  if(action==='cancel') {hrAssert_((self||admin)&&['claims','loans','bookings'].indexOf(module)!==-1&&['Pending manager','Pending admin'].indexOf(r.status)!==-1,'Request cannot be cancelled.');r.status='Cancelled';}
+  else if(module==='claims'&&['approve','reject','paid'].indexOf(action)!==-1){
+    if(action==='paid'){hrAssert_(admin&&r.status==='Approved','Only approved claims can be marked paid.');hrAssert_(String(payload.reference||'').trim(),'Payment reference is required.');r.status='Paid';r.paymentReference=String(payload.reference).trim();}
+    else {if(action==='approve')hrClaimLimit_(r);hrAssert_((r.status==='Pending manager'&&(manager||admin))||(r.status==='Pending admin'&&admin),'You cannot review this claim at this stage.');r.status=action==='reject'?'Rejected':r.status==='Pending manager'?'Pending admin':'Approved';}
+  }
+  else if(module==='loans'){
+    if(action==='approve'||action==='reject'){hrAssert_((r.status==='Pending manager'&&(manager||admin))||(r.status==='Pending admin'&&admin),'Loan is not awaiting your decision.');r.status=action==='reject'?'Rejected':r.status==='Pending manager'?'Pending admin':'Approved';}
+    else if(action==='disburse'){hrAssert_(admin&&!self&&r.status==='Approved','Loan cannot be disbursed.');hrAssert_(String(payload.reference||'').trim(),'Payment reference is required.');r.status='Active';r.paymentReference=String(payload.reference).trim();r.outstanding=r.amount;r.repayments=[];}
+    else if(action==='repay'){const amount=Number(payload.repayment);hrAssert_(admin&&r.status==='Active','Loan is not active.');hrAssert_(amount>0&&Number.isFinite(amount)&&amount<=r.outstanding,'Repayment must be positive and within outstanding balance.');hrAssert_(String(payload.reference||'').trim(),'Repayment reference is required.');hrAssert_(!(r.repayments||[]).some(p=>p.reference===String(payload.reference).trim()),'Repayment reference already recorded.');r.repayments.push({amount:amount,reference:String(payload.reference).trim(),date:new Date().toISOString(),actor:actor.name});r.outstanding=Number((r.outstanding-amount).toFixed(2));if(r.outstanding===0)r.status='Settled';}
+    else throw new Error('Invalid loan action.');
+  }
+  else if(module==='resourceAssignments'&&action==='returnResource'){hrAssert_(admin&&r.status==='Assigned','Only HR can return an assigned resource.');r.status='Returned';r.returnedAt=new Date().toISOString();r.returnNotes=String(payload.comments||'').slice(0,12000);}
+  else if(module==='bookings'&&['approve','reject'].indexOf(action)!==-1){hrAssert_(admin&&r.status==='Pending admin','Booking is not awaiting your approval.');if(action==='approve')hrConflict_(r);r.status=action==='approve'?'Approved':'Rejected';}
+  else if(module==='tax'&&action==='review'){hrAssert_(admin&&r.status==='Submitted','Declaration cannot be reviewed.');r.status='Reviewed';}
+  else if(module==='cycles'&&action==='closeCycle'){hrAssert_(admin&&r.status==='Active','Cycle cannot be closed.');hrAssert_(!hrRows_('appraisals').some(a=>a.cycleId===r.id&&a.status!=='Completed'),'Complete all appraisals before closing the cycle.');r.status='Closed';}
+  else if(module==='letters'&&action==='issue'){hrAssert_(admin&&r.status==='Draft','Letter cannot be issued.');r.status='Issued';}
+  else if(module==='training'&&action==='complete'){hrAssert_(admin&&r.status==='Planned','Training cannot be completed.');r.status='Completed';}
+  else if(module==='appraisals'){
+    const rating=Number(payload.rating);hrAssert_(rating>=1&&rating<=5,'Rating must be between 1 and 5.');
+    if(action==='selfReview'){hrAssert_(self&&r.status==='Pending self','Self review is not available.');r.selfRating=rating;r.selfComments=String(payload.comments||'').slice(0,12000);r.status=r.manager?'Pending manager':'Pending admin';}
+    else if(action==='managerReview'){hrAssert_((manager||admin)&&!self&&r.status==='Pending manager','Manager review is not available.');r.managerRating=rating;r.managerComments=String(payload.comments||'').slice(0,12000);r.status='Pending admin';}
+    else if(action==='finalise'){hrAssert_(admin&&!self&&r.status==='Pending admin','Appraisal cannot be finalised.');r.finalRating=Number(((Number(r.selfRating)+Number(r.managerRating||rating))/2).toFixed(2));r.status='Completed';r.finalComments=String(payload.comments||'').slice(0,12000);}
+    else throw new Error('Invalid appraisal action.');
+  } else throw new Error('Action is not available for this record.');
+  if(action==='reject')hrAssert_(String(payload.comments||'').trim(),'Reason is required for rejection.');
+  r.decisionComments=String(payload.comments||'').slice(0,12000);r.decisionBy=actor.name;r.decisionAt=new Date().toISOString();
+  return hrWrite_(module,r,actor,old,action);
+}
+function hrLeaveAdjustments_(employee,year) {
+  const sums={Annual:0,Medical:0};hrRows_('adjustments').filter(r=>r.employee===hrName_(employee)&&r.year===year).forEach(r=>sums[r.category]+=Number(r.days));return sums;
+}
+function hrLegacyPayload_(action,payload,actor) {
+  const admin=hrAdmin_(actor);
+  const adminActions=['unlockMonth','saveSingleStaff','deleteSingleStaff','saveHolidays','saveAttendance','saveData','lockMonth','getBootstrap','getData','getAttendance','getLockedMonths'];
+  if(action==='saveSingleStaff')payload=hrEmployeePayload_(payload,actor);
+  if(action==='deleteSingleStaff')throw new Error('Set the employee status to Resigned to preserve HR and payroll history.');
+  if(adminActions.indexOf(action)!==-1)hrAssert_(admin,'Administrator access is required.');
+  if(['submitLeave','updateOwnProfile'].indexOf(action)!==-1){payload=Object.assign({},payload);payload.staffName=actor.name;payload.name=actor.name;}
+  if(action==='updateLeaveStatus') {
+    const index=Number(payload.rowIndex),sheet=getSpreadsheet_().getSheetByName('Leave');
+    hrAssert_(sheet&&Number.isInteger(index)&&index>=2&&index<=sheet.getLastRow(),'Invalid leave row.');
+    const row=sheet.getRange(index,1,1,12).getValues()[0];
+    if(payload.requestId!=null)hrAssert_(String(payload.requestId)===String(row[0]),'Request moved. Refresh and try again.');
+    if(payload.expectedStatus!=null)hrAssert_(payload.expectedStatus===row[8],'Request changed. Refresh and review the latest status.');
+    if(payload.newStatus==='Rejected')hrAssert_(String(payload.approverRemark||'').trim(),'A rejection reason is required.');
+    if(hrTeam_(actor,row[1]))hrAssert_(['Approved','Rejected','Withdrawn'].indexOf(payload.newStatus)!==-1,'Invalid leave decision.');
+    else if(!admin)hrAssert_(hrName_(row[1])===actor.name&&payload.newStatus==='Withdrawal Requested'&&['Pending','Approved'].indexOf(row[8])!==-1,'You can only request withdrawal of your own active leave.');
+    else {hrAssert_(hrName_(row[1])!==actor.name,'A different approver must decide your leave.');hrAssert_(['Approved','Rejected','Withdrawn'].indexOf(payload.newStatus)!==-1,'Invalid leave decision.');}
+    payload=Object.assign({},payload,{approver:actor.name});
+  }
+  if(action==='getLeaveData')payload=Object.assign({},payload,{role:payload.scope==='personal'?'Staff':(admin||hrManager_(actor))?'Admin':'Staff',staffName:actor.name});
+  return payload;
+}
+function hrLegacyResponse_(action,response,actor) {
+  const data=JSON.parse(response.getContent());
+  const admin=hrAdmin_(actor);
+  function sanitiseStaff(staff){const clean={};Object.keys(staff||{}).forEach(name=>{if(admin||hrName_(name)===actor.name){clean[name]=Object.assign({},staff[name]);delete clean[name].password;}});return clean;}
+  if(action==='getLeaveData'&&data.status==='success'&&!admin)data.data=data.data.filter(r=>hrName_(r.name)===actor.name||hrTeam_(actor,r.name));
+  if(action==='getStaff'&&data.status==='success')data.data=sanitiseStaff(data.data);
+  if(action==='getBootstrap'&&data.data&&data.data.staff)data.data.staff.data=sanitiseStaff(data.data.staff.data);
+  if(action==='getPayroll'&&data.status==='success'&&!admin)data.data=data.data.filter(r=>hrName_(r.name)===actor.name);
+  return jsonResponse(data);
+}
+
+function hrClaimLimit_(record) {
+  const profile=hrRows_('profiles').find(r=>r.employee===record.employee),year=Number(record.date.slice(0,4));
+  const candidates=profile?hrRows_('claimPolicies').filter(p=>p.companyId===profile.companyId&&p.category===record.category&&p.year===year):[];
+  const policy=hrPolicyForGrade_(candidates,profile);
+  const others=hrRows_('claims').filter(r=>r.id!==record.id&&r.employee===record.employee&&r.category===record.category&&r.date.slice(0,4)===String(year)&&['Pending manager','Pending admin','Approved','Paid'].indexOf(r.status)!==-1);
+  hrAssert_(!others.some(r=>r.receiptNo===record.receiptNo&&r.date===record.date),'This receipt has already been submitted.');
+  if(policy){record.gradeId=profile.gradeId||'';record.policyId=policy.id;hrAssert_(record.amount<=policy.receiptLimit,'Claim exceeds the per-receipt policy limit.');hrAssert_(others.reduce((sum,r)=>sum+r.amount,0)+record.amount<=policy.annualLimit,'Claim exceeds the annual limit including pending requests.');}
+}
