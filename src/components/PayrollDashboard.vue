@@ -1189,8 +1189,16 @@ onBeforeUnmount(() => {
                 <div class="leave-history-filters"><input id="leaveSearch" class="form-control" type="search" aria-label="Search my leave requests" placeholder="Search type, dates or reason…" @input="dashboardActions.renderMyLeaveHistory()"><select id="leaveStatusFilter" class="form-select" aria-label="Filter leave status" @change="dashboardActions.renderMyLeaveHistory()"><option value="">All statuses</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Withdrawal Requested</option><option>Withdrawn</option></select></div>
                 
                 <div class="table-responsive desktop-only">
-                    <table class="table table-hover align-middle text-center" id="myLeaveTable">
-                        <thead class="table-light"><tr><th>Type</th><th>Dates</th><th>Days</th><th>Reason / document</th><th>Status / action</th></tr></thead>
+                    <table class="table table-hover align-middle text-start" id="myLeaveTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col" style="width: 12%; min-width: 80px;">Type</th>
+                                <th scope="col" style="width: 22%; min-width: 150px;">Dates</th>
+                                <th scope="col" style="width: 12%; min-width: 90px;">Days</th>
+                                <th scope="col" style="width: 32%; min-width: 200px;">Reason / document</th>
+                                <th scope="col" style="width: 22%; min-width: 180px;">Status / action</th>
+                            </tr>
+                        </thead>
                         <tbody id="myLeaveTableBody"></tbody>
                     </table>
                 </div>
