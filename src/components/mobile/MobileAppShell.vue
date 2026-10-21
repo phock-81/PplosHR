@@ -23,7 +23,7 @@ const meSelection = ref({ section: 'leave', sequence: 0 });
 const currentTab = ref('home'); // 'home' | 'attendance' | 'requests' | 'inbox' | 'me'
 
 const tabTitles = {
-  home: 'PplosHR',
+  home: 'PeopleOSHR',
   attendance: 'My Attendance',
   requests: 'Requests & Applications',
   inbox: 'Inbox & Approvals',
@@ -105,6 +105,7 @@ async function checkPendingApprovalUpdates() {
 const activeScreen = ref(null);
 const isRefreshing = ref(false);
 const hasPendingUpdate = ref(false);
+const lastSuccessfulRefresh = ref('');
 let lastRefreshedAt = Date.now();
 
 async function triggerManualRefresh() {
@@ -128,6 +129,7 @@ async function triggerManualRefresh() {
     await activeScreen.value?.refresh?.();
     hasPendingUpdate.value = false;
     lastRefreshedAt = Date.now();
+    lastSuccessfulRefresh.value = new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit' }).format(new Date());
     window.dispatchEvent(new CustomEvent('hr-mobile-refreshed'));
   } catch (error) {
     hasPendingUpdate.value = true;
@@ -451,6 +453,11 @@ const openBookingWizard = () => openRequest('booking');
       </div>
     </header>
 
+    <div class="m-data-freshness" role="status" aria-live="polite">
+      <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+      <span>{{ isRefreshing ? 'Refreshing your workspace…' : hasPendingUpdate ? 'Refresh available · Pull down to update' : lastSuccessfulRefresh ? `Last refreshed ${lastSuccessfulRefresh} MYT` : 'Pull down to refresh your workspace' }}</span>
+    </div>
+
     <!-- Update Prompt Banner / Pill -->
     <transition name="m-slide-down">
       <div
@@ -526,6 +533,7 @@ const openBookingWizard = () => openRequest('booking');
       <button
         type="button"
         :class="['m-nav-tab', { active: currentTab === 'home' }]"
+        :aria-current="currentTab === 'home' ? 'page' : undefined"
         @click="handleNavigate('home')"
       >
         <i class="bi bi-house-door-fill"></i>
@@ -535,6 +543,7 @@ const openBookingWizard = () => openRequest('booking');
       <button
         type="button"
         :class="['m-nav-tab', { active: currentTab === 'attendance' }]"
+        :aria-current="currentTab === 'attendance' ? 'page' : undefined"
         @click="handleNavigate('attendance')"
       >
         <i class="bi bi-calendar2-check-fill"></i>
@@ -544,6 +553,7 @@ const openBookingWizard = () => openRequest('booking');
       <button
         type="button"
         :class="['m-nav-tab', { active: currentTab === 'requests' }]"
+        :aria-current="currentTab === 'requests' ? 'page' : undefined"
         @click="handleNavigate('requests')"
       >
         <i class="bi bi-file-earmark-plus-fill"></i>
@@ -553,6 +563,7 @@ const openBookingWizard = () => openRequest('booking');
       <button
         type="button"
         :class="['m-nav-tab', { active: currentTab === 'inbox' }]"
+        :aria-current="currentTab === 'inbox' ? 'page' : undefined"
         @click="handleNavigate('inbox')"
       >
         <div class="position-relative">
@@ -565,6 +576,7 @@ const openBookingWizard = () => openRequest('booking');
       <button
         type="button"
         :class="['m-nav-tab', { active: currentTab === 'me' }]"
+        :aria-current="currentTab === 'me' ? 'page' : undefined"
         @click="handleNavigate('me')"
       >
         <i class="bi bi-person-fill"></i>

@@ -1,5 +1,12 @@
 <template>
   <div class="role-overview-container">
+    <header class="phr-overview-intro">
+      <div>
+        <div class="phr-date">{{ getMytToday() }} · MYT</div>
+        <h3>{{ normalizedRole === 'User' ? 'Your working day.' : normalizedRole === 'HOD' ? 'Your team, at a glance.' : 'People, at a glance.' }}</h3>
+        <p>{{ normalizedRole === 'User' ? 'Attendance, leave and requests — all in one place.' : 'Your team, requests and priorities in one place.' }}</p>
+      </div>
+    </header>
     <!-- Filter & Header Bar -->
     <OverviewFilterBar
       :role="currentRole"
@@ -19,6 +26,7 @@
       @drilldown="handleDrilldown"
     />
 
+    <div class="phr-overview-body">
     <!-- Unified Deduplicated Action Inbox (Shown for HOD, HR, Admin, or if User has pending items) -->
     <OverviewActionInbox 
       v-if="actionInboxItems.length || ['HOD', 'HR', 'Admin'].includes(normalizedRole)"
@@ -41,6 +49,7 @@
       :data-gaps="dataQualityGaps"
       @nav="handleNavShortcut"
     />
+    </div>
   </div>
 </template>
 
