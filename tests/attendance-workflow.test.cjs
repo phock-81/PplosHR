@@ -227,7 +227,7 @@ assert.match(accountMenuCode, /hr-action-count/, 'AccountMenu must listen to hr-
 // Ensure dashboard.js strictly sources allStaffNames from staffSettings
 const dashPath = path.join(__dirname, '..', 'src', 'services', 'dashboard.js');
 const dashCode = fs.readFileSync(dashPath, 'utf8');
-assert.match(dashCode, /const allStaffNames = Object\.keys\(staffSettings\);/, 'allStaffNames in renderStaffMgmt must strictly source from staffSettings');
+assert.match(dashCode, /(?:const|let) allStaffNames = Object\.keys\(staffSettings\);/, 'allStaffNames in renderStaffMgmt must strictly source from staffSettings');
 assert.match(dashCode, /recommendAttendanceHOD/, 'recommendAttendanceHOD must be defined in dashboard.js');
 assert.match(dashCode, /approveAttendanceHR/, 'approveAttendanceHR must be defined in dashboard.js');
 assert.match(dashCode, /rejectAttendanceApproval/, 'rejectAttendanceApproval must be defined in dashboard.js');

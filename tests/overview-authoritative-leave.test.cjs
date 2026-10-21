@@ -63,6 +63,10 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
  context.clearOwnLeaveSummary();context.user.value={name:'HR',role:'HR'};await context.loadOwnLeaveSummary();assert.equal(calls.length,4,'HR overview does not add unnecessary personal leave fetch');
  assert.match(workspace,/:leave-summary="ownLeaveSummary"/);
  assert.match(workspace,/onBeforeUnmount\(\(\)=>\{clearOwnLeaveSummary\(\)/,'unmount invalidates own leave request');
- assert.equal((roleSource.match(/new CustomEvent\('hr-personal-attendance'\)/g)||[]).length,2,'both personal attendance entrypoints dispatch personal view event');
+ const attendanceNavigations=[];
+ const navigationContext=vm.createContext({window:{switchTab:tab=>attendanceNavigations.push(tab)}});
+ vm.runInContext(slice(roleSource,'function handleDrilldown(', 'function onRefresh('),navigationContext);
+ vm.runInContext("handleDrilldown('myAttendance');handleNavShortcut('myAttendance');",navigationContext);
+ assert.deepEqual(attendanceNavigations,['my-attendance','my-attendance'],'both personal attendance entrypoints open the embedded attendance page');
  console.log('PASS: authoritative leave balances shared consistently; zero/missing/adjusted values, request dedup, explicit retry, errors and session races.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
