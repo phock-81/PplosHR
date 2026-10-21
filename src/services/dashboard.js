@@ -2448,28 +2448,45 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
     const leaveEscape=value=>$('<div>').text(String(value??'')).html();
     function leaveNotice(message,error=false,target='#leaveFeedback'){$(target).removeClass('alert-danger alert-success').addClass(error?'alert-danger':'alert-success').text(message).show();}
     function renderMyLeaveHistory(){
+        const safeDMY = typeof formatDateDMY === 'function' ? formatDateDMY : (v => {
+            if (!v) return '';
+            const str = String(v).trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
+            const m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (m) return `${m[3].padStart(2, '0')}/${m[2].padStart(2, '0')}/${m[1]}`;
+            return str;
+        });
         const query=String($('#leaveSearch').val()||'').toLowerCase(),status=$('#leaveStatusFilter').val();
-        const rows=myLeaveRecords.filter(r=>leaveMatchesStatus(r.status,status)&&(!query||[r.type,r.start,r.end,r.reason].join(' ').toLowerCase().includes(query)));
+        const rows=myLeaveRecords.filter(r=>leaveMatchesStatus(r.status,status)&&(!query||[r.type,r.start,r.end,safeDMY(r.start),safeDMY(r.end),r.reason].join(' ').toLowerCase().includes(query)));
         const tbody=$('#myLeaveTableBody').empty(),mobile=$('#myLeaveCardsMobile').empty();
         $('#leaveHistoryCount').text(`${rows.length} of ${myLeaveRecords.length} requests`);
         const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur'}).format(new Date());
         rows.forEach(r=>{
             const start=formatLocalDate(r.start),end=formatLocalDate(r.end),view=leaveStatusView(r.status),pending=view.pending;
+            const dmyStart=safeDMY(r.start),dmyEnd=safeDMY(r.end);
+            const dateRange=(dmyStart&&dmyEnd)?`${dmyStart} - ${dmyEnd}`:(dmyStart||dmyEnd||'—');
             const badgeClass=view.approved?'leave-approved':pending?'leave-pending':view.key==='rejected'?'leave-rejected':'leave-neutral';
             const badge=`<span class="leave-status ${badgeClass}">${leaveEscape(view.label)}</span>`;
-            const file=/^https:\/\//i.test(r.attachment||'')?`<a class="leave-document" href="${leaveEscape(r.attachment)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-paperclip"></i>Supporting document</a>`:'';
+            const fileUrl=String(r.attachment||'').trim();
+            const isLink=/^(https?:\/\/|data:|\/)/i.test(fileUrl);
+            const docHtml=isLink
+                ? `<a class="leave-document fw-semibold text-decoration-none" href="${leaveEscape(fileUrl)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-paperclip me-1"></i>View Document</a>`
+                : (fileUrl ? `<span class="small text-muted">${leaveEscape(fileUrl)}</span>` : '<span class="text-muted">—</span>');
             const action=()=>{const b=$('<button type="button" class="btn btn-sm btn-outline-secondary mt-2">Request withdrawal</button>');b.on('click',()=>withdrawLeave(r.id,r.rowIndex));return b;};
             const tUpper=String(r.type||'').toUpperCase().trim();
             const isAL=tUpper==='AL'||tUpper==='ANNUAL'||tUpper==='ANNUAL LEAVE'||tUpper.startsWith('AL ')||tUpper.startsWith('AL-');
             const allowed=isAL&&start>today&&(['pending','pending_hod','pending_admin'].includes(view.key)||view.approved);
-            const tr=$(`<tr><td><strong>${leaveEscape(r.type)}</strong></td><td>${leaveEscape(start)}<small class="d-block text-muted">to ${leaveEscape(end)}</small></td><td>${leaveEscape(r.days)} days</td><td><span class="leave-reason">${leaveEscape(r.reason||'—')}</span>${r.decision?`<small class="d-block text-muted">${leaveEscape(r.decision)}${r.decisionRemark?' · '+leaveEscape(r.decisionRemark):''}</small>`:''}${file}</td><td>${badge}<small class="d-block text-muted mt-1">${view.withdrawal?'Awaiting withdrawal decision':view.pending?'Awaiting approval':''}</small></td></tr>`);
+            const hasDecisionRemark=r.decisionRemark && String(r.decisionRemark).trim() !== String(r.reason || '').trim();
+            const decisionHtml=r.decision?`<small class="d-block text-muted mt-1">${leaveEscape(r.decision)}${hasDecisionRemark?' · '+leaveEscape(r.decisionRemark):''}</small>`:'';
+            const tr=$(`<tr><td><strong>${leaveEscape(r.type)}</strong></td><td class="text-nowrap">${leaveEscape(dateRange)}</td><td>${leaveEscape(r.days)} days</td><td><span class="leave-reason">${leaveEscape(r.reason||'—')}</span>${decisionHtml}</td><td>${docHtml}</td><td>${badge}</td></tr>`);
             if(allowed)tr.find('td').last().append(action());tbody.append(tr);
-            const card=$(`<article class="leave-history-card"><div class="leave-section-heading"><strong>${leaveEscape(r.type)}</strong>${badge}</div><p>${leaveEscape(start)} → ${leaveEscape(end)} · ${leaveEscape(r.days)} days</p><p class="text-muted">${leaveEscape(r.reason||'No reason provided')}</p>${file}</article>`);if(allowed)card.append(action());mobile.append(card);
+            const cardDoc=isLink?`<div class="mt-2"><a class="leave-document fw-semibold text-decoration-none" href="${leaveEscape(fileUrl)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-paperclip me-1"></i>View Document</a></div>`:'';
+            const card=$(`<article class="leave-history-card"><div class="leave-section-heading"><strong>${leaveEscape(r.type)}</strong>${badge}</div><p class="mb-1"><strong>${leaveEscape(dateRange)}</strong> · ${leaveEscape(r.days)} days</p><p class="text-muted mb-0">${leaveEscape(r.reason||'No reason provided')}</p>${decisionHtml}${cardDoc}</article>`);if(allowed)card.append(action());mobile.append(card);
         });
-        if(!rows.length){const text=myLeaveRecords.length?'No requests match your search.':'No leave requests yet. Your submitted requests will appear here.';tbody.append($('<tr>').append($('<td colspan="5" class="leave-empty">').text(text)));mobile.append($('<p class="leave-empty">').text(text));}
+        if(!rows.length){const text=myLeaveRecords.length?'No requests match your search.':'No leave requests yet. Your submitted requests will appear here.';tbody.append($('<tr>').append($('<td colspan="6" class="leave-empty">').text(text)));mobile.append($('<p class="leave-empty">').text(text));}
     }
     async function fetchMyLeave() {
-        $('#myLeaveTableBody').html('<tr><td colspan="5" class="leave-empty">Loading requests…</td></tr>');
+        $('#myLeaveTableBody').html('<tr><td colspan="6" class="leave-empty">Loading requests…</td></tr>');
         const res=await apiPost('getLeaveData',{scope:'personal'});
         if(res.staleSession)return;
         if(res.status!=='success'){leaveNotice(res.message||'Unable to load leave requests. Please retry.',true);$('#myLeaveTableBody').empty();return;}

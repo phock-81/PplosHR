@@ -105,10 +105,10 @@
                 <tbody class="small">
                   <tr v-for="l in teamLeaveUpcoming.slice(0, 8)" :key="l.id">
                     <td class="fw-semibold">{{ l.name || l.employee }}</td>
-                    <td><span class="badge bg-secondary-subtle text-secondary">{{ l.category || l.leaveType }}</span></td>
-                    <td>{{ l.start }} – {{ l.end }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ l.type || l.leaveType || l.category || 'Leave' }}</span></td>
+                    <td class="text-nowrap">{{ formatPeriod(l.start, l.end) }}</td>
                     <td>{{ l.days || l.totalDays }}d</td>
-                    <td><span class="badge bg-success-subtle text-success">Approved</span></td>
+                    <td><span :class="['badge', getLeaveStatusBadge(l.status).badgeClass]">{{ getLeaveStatusBadge(l.status).label }}</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -470,6 +470,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { normalizeRole, getMytToday } from './OverviewMetricService';
+import { formatDateDMY } from '../../utils/dateUtils';
 
 const props = defineProps({
   role: { type: String, default: 'User' },
@@ -576,13 +577,42 @@ const teamSubordinates = computed(() => {
   return (props.employees || []).filter(e => String(e.manager || '').toUpperCase() === mName && e.status !== 'Resigned');
 });
 
+const formatPeriod = (start, end) => {
+  const s = formatDateDMY(start);
+  const e = formatDateDMY(end);
+  if (s && e) return `${s} - ${e}`;
+  return s || e || '—';
+};
+
+const getLeaveStatusBadge = (status) => {
+  const s = String(status || '').trim().toLowerCase();
+  if (['approved'].includes(s)) {
+    return { label: 'Approved', badgeClass: 'bg-success-subtle text-success border border-success-subtle' };
+  }
+  if (['pending_hod', 'pending_admin', 'pending', 'pending approval', 'awaiting hod approval', 'awaiting hr approval'].includes(s) || !s) {
+    return { label: 'Pending Approval', badgeClass: 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' };
+  }
+  if (['withdrawal requested', 'withdrawal_requested'].includes(s)) {
+    return { label: 'Withdrawal Requested', badgeClass: 'bg-warning-subtle text-dark border border-warning-subtle' };
+  }
+  if (['rejected'].includes(s)) {
+    return { label: 'Rejected', badgeClass: 'bg-danger-subtle text-danger border border-danger-subtle' };
+  }
+  if (['withdrawn'].includes(s)) {
+    return { label: 'Withdrawn', badgeClass: 'bg-secondary-subtle text-secondary border border-secondary-subtle' };
+  }
+  return { label: status || 'Pending Approval', badgeClass: 'bg-light text-dark border' };
+};
+
 const teamTotalCount = computed(() => teamSubordinates.value.length);
 
 const teamLeaveUpcoming = computed(() => {
   const teamNames = new Set(teamSubordinates.value.map(e => String(e.name || '').toUpperCase()));
   const today = getMytToday();
   return (props.teamLeave || [])
-    .filter(l => teamNames.has(String(l.name || l.employee || '').toUpperCase()) && l.end >= today)
+    .filter(l => teamNames.has(String(l.name || l.employee || '').toUpperCase()) &&
+                 l.end >= today &&
+                 !['rejected', 'withdrawn'].includes(String(l.status || '').toLowerCase()))
     .sort((a, b) => a.start.localeCompare(b.start));
 });
 
@@ -590,7 +620,10 @@ const teamOnLeaveTodayCount = computed(() => {
   const teamNames = new Set(teamSubordinates.value.map(e => String(e.name || '').toUpperCase()));
   const today = getMytToday();
   return (props.teamLeave || [])
-    .filter(l => teamNames.has(String(l.name || l.employee || '').toUpperCase()) && l.start <= today && l.end >= today)
+    .filter(l => teamNames.has(String(l.name || l.employee || '').toUpperCase()) &&
+                 String(l.status || '').toLowerCase() === 'approved' &&
+                 l.start <= today &&
+                 l.end >= today)
     .length;
 });
 

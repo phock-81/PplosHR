@@ -1192,11 +1192,12 @@ onBeforeUnmount(() => {
                     <table class="table table-hover align-middle text-start" id="myLeaveTable">
                         <thead class="table-light">
                             <tr>
-                                <th scope="col" style="width: 12%; min-width: 80px;">Type</th>
-                                <th scope="col" style="width: 22%; min-width: 150px;">Dates</th>
-                                <th scope="col" style="width: 12%; min-width: 90px;">Days</th>
-                                <th scope="col" style="width: 32%; min-width: 200px;">Reason / document</th>
-                                <th scope="col" style="width: 22%; min-width: 180px;">Status / action</th>
+                                <th scope="col" style="width: 10%; min-width: 70px;">Type</th>
+                                <th scope="col" style="width: 22%; min-width: 170px;">Dates</th>
+                                <th scope="col" style="width: 10%; min-width: 70px;">Days</th>
+                                <th scope="col" style="width: 26%; min-width: 150px;">Reason</th>
+                                <th scope="col" style="width: 14%; min-width: 110px;">Document</th>
+                                <th scope="col" style="width: 18%; min-width: 150px;">Status / action</th>
                             </tr>
                         </thead>
                         <tbody id="myLeaveTableBody"></tbody>

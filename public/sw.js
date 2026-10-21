@@ -2,7 +2,7 @@
  * SECURITY: caches ONLY same-origin static build assets (/assets, icons, manifest) and a tiny offline page.
  * It never caches: non-GET requests, cross-origin requests (Apps Script API), HTML documents containing
  * session data, PDFs, or any attachment/payslip URL. Authenticated data is always network-only. */
-const VERSION = 'pploshr-shell-v6';
+const VERSION = 'pploshr-shell-v7';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/html2pdf.bundle.min.js'];
 
