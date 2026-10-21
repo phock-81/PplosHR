@@ -4,9 +4,17 @@ import HrWorkspace from "./HrWorkspace.vue";
 const StaffDossierModal = defineAsyncComponent(() => import("./StaffDossierModal.vue"));
 const PersonalAttendance = defineAsyncComponent(() => import("./PersonalAttendance.vue"));
 const MobileAppShell = defineAsyncComponent(() => import("./mobile/MobileAppShell.vue"));
-import { onMounted, onBeforeUnmount, ref, watch, nextTick, defineAsyncComponent } from "vue";
+import { onMounted, onBeforeUnmount, ref, computed, watch, nextTick, defineAsyncComponent } from "vue";
 import { mountDashboard, dashboardActions } from "../services/dashboard";
 import { clearMobileSessionCache } from '../services/mobileSessionCache';
+
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+const currentUser = ref(null);
+const hrBootstrapRecords = ref({});
+const hrEmployees = ref([]);
+const hrTeamLeave = ref([]);
+const isBrowserFullscreen = ref(false);
+
 const showDossierModal = ref(false);
 const dossierTargetEmployee = ref('');
 const showPersonalAttendance = ref(false);
@@ -63,12 +71,6 @@ if (typeof window !== 'undefined') {
         import("./StaffDossierModal.vue");
     }, 1200);
 }
-const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
-const currentUser = ref(null);
-const hrBootstrapRecords = ref({});
-const hrEmployees = ref([]);
-const hrTeamLeave = ref([]);
-const isBrowserFullscreen = ref(false);
 function toggleBrowserFullscreen() {
   if (typeof document === 'undefined') return;
   if (!document.fullscreenElement) {
