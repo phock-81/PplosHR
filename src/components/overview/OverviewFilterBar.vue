@@ -15,9 +15,9 @@
       <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1 justify-content-end">
         <!-- Company Selector (HR & Admin only) -->
         <div v-if="['HR', 'Admin'].includes(normalizedRole)" class="filter-group">
-          <label class="form-label visually-hidden">Company</label>
-          <select 
-            v-model="modelCompany" 
+          <label for="overview-company" class="form-label visually-hidden">Company</label>
+          <select
+            id="overview-company" v-model="modelCompany"
             class="form-select form-select-sm fw-semibold shadow-none"
             @change="onCompanyChange"
           >
@@ -28,9 +28,9 @@
 
         <!-- Department Selector (HR & Admin only) -->
         <div v-if="['HR', 'Admin'].includes(normalizedRole)" class="filter-group">
-          <label class="form-label visually-hidden">Department</label>
-          <select 
-            v-model="modelDepartment" 
+          <label for="overview-department" class="form-label visually-hidden">Department</label>
+          <select
+            id="overview-department" v-model="modelDepartment"
             class="form-select form-select-sm fw-semibold shadow-none"
           >
             <option value="all">All Departments</option>
@@ -40,8 +40,8 @@
 
         <!-- Period Selector (All Roles) -->
         <div class="filter-group">
-          <label class="form-label visually-hidden">Period</label>
-          <select v-model="modelPeriod" class="form-select form-select-sm fw-semibold shadow-none">
+          <label for="overview-period" class="form-label visually-hidden">Period</label>
+          <select id="overview-period" v-model="modelPeriod" class="form-select form-select-sm fw-semibold shadow-none">
             <option value="today">Today</option>
             <option value="thisMonth">This Month</option>
             <option value="lastMonth">Last Month</option>
@@ -50,7 +50,7 @@
         </div>
 
         <!-- Reset Button -->
-        <button 
+        <button
           class="btn btn-outline-secondary btn-sm fw-semibold shadow-sm"
           type="button"
           title="Reset Filters"
@@ -60,7 +60,7 @@
         </button>
 
         <!-- Refresh Button -->
-        <button 
+        <button
           class="btn btn-outline-primary btn-sm fw-bold shadow-sm"
           type="button"
           :disabled="refreshing"

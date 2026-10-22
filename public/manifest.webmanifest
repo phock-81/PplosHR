@@ -1,13 +1,13 @@
 {
-  "name": "PplosHR - Attendance & Payroll",
-  "short_name": "PplosHR",
+  "name": "PeopleOSHR - Attendance & Payroll",
+  "short_name": "PeopleOSHR",
   "description": "Employee and manager HR portal: leave, claims, attendance and approvals.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f5f5f7",
-  "theme_color": "#1c1c1e",
+  "theme_color": "#92502e",
   "lang": "en",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

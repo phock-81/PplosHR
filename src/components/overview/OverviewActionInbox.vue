@@ -6,8 +6,8 @@
           <i class="bi bi-inbox-fill text-primary"></i>
         </div>
         <div>
-          <h6 class="fw-bold mb-0 text-dark">Unified Action Inbox</h6>
-          <span class="text-muted extra-small">Prioritized actionable requests requiring your review or approval</span>
+          <h6 class="fw-bold mb-0 text-dark">Needs your attention</h6>
+          <span class="text-muted extra-small">Review details, evidence and history before taking action.</span>
         </div>
       </div>
       <span class="badge rounded-pill" :class="items.length ? 'bg-danger-subtle text-danger border border-danger-subtle' : 'bg-light text-muted border'">
@@ -64,7 +64,7 @@
             type="button"
             @click.stop="openDetails(item)"
           >
-            <i class="bi bi-card-checklist me-1"></i>{{ item.actionType || 'Review' }}
+            <i class="bi bi-card-checklist me-1"></i>Review
           </button>
         </div>
       </div>

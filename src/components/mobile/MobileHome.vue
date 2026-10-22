@@ -285,7 +285,7 @@ defineExpose({ refresh: () => loadVerifiedLeaveBalance(true) });
       <div class="m-hero-welcome">
         <span class="m-date-badge"><i class="bi bi-calendar3 me-1"></i>{{ todayDateStr }}</span>
         <h2 class="m-greeting-title">{{ greeting }}, {{ firstName }}!</h2>
-        <p class="m-greeting-sub">{{ user.jobTitle || 'Team Member' }} · {{ user.department || user.company || 'Metrio Group' }}</p>
+        <p class="m-greeting-sub">{{ user.jobTitle || 'Team Member' }} · {{ user.department || user.company || 'My workspace' }}</p>
       </div>
     </header>
 
