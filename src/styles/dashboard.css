@@ -476,8 +476,9 @@
    MY PROFILE REDESIGN (COMPACT, ENTERPRISE GRADE)
    ========================================================================== */
 .profile-redesign-shell {
-    max-width: 1040px;
-    margin: 0 auto;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
 }
 
 .profile-hero-card {

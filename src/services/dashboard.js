@@ -2182,6 +2182,34 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                 $('#myProfileAddress').val(currentFullProfile.address || '');
                 
                 $('#myProfileBasic').val(currentFullProfile.basic ? 'RM ' + currentFullProfile.basic.toFixed(2) : 'RM 0.00');
+
+                // Populate Fixed Allowance in My Profile
+                const totalFixedAllowance = parseFloat(currentFullProfile.fixedAllowance) || 0;
+                $('#myProfileFixedAllowance').val('RM ' + totalFixedAllowance.toFixed(2));
+                
+                let myAllowances = [];
+                if (currentFullProfile.fixedAllowances && Array.isArray(currentFullProfile.fixedAllowances) && currentFullProfile.fixedAllowances.length) {
+                    myAllowances = currentFullProfile.fixedAllowances;
+                } else if (currentFullProfile.allowances && Array.isArray(currentFullProfile.allowances) && currentFullProfile.allowances.length) {
+                    myAllowances = currentFullProfile.allowances;
+                } else if (typeof currentFullProfile.allowances === 'string' && currentFullProfile.allowances.trim()) {
+                    try { myAllowances = JSON.parse(currentFullProfile.allowances); } catch(_) {}
+                } else if (totalFixedAllowance > 0) {
+                    myAllowances = [{ category: 'Other Allowance', amount: totalFixedAllowance, remarks: 'Monthly fixed' }];
+                }
+                
+                if (myAllowances && myAllowances.length > 0) {
+                    const allowRows = myAllowances.map(a => `
+                        <tr>
+                            <td class="fw-semibold text-dark"><i class="bi bi-tag-fill me-1 text-primary"></i>${a.category || a.name || 'Allowance'}</td>
+                            <td class="fw-bold text-primary">RM ${parseFloat(a.amount || 0).toFixed(2)}</td>
+                            <td class="text-muted small">${a.remarks || '-'}</td>
+                        </tr>
+                    `).join('');
+                    $('#myProfileAllowanceTableBody').html(allowRows);
+                } else {
+                    $('#myProfileAllowanceTableBody').html('<tr><td colspan="3" class="text-muted text-center py-2 small">No fixed allowances allocated</td></tr>');
+                }
                 
                 const formatInputDate = (dStr) => {
                     if (!dStr) return 'N/A';
@@ -2208,6 +2236,36 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                 $('#myProfileWorkBase').val(currentFullProfile.workBase || '-');
                 $('#myProfileLocation').val(currentFullProfile.location || '-');
                 $('#myProfileAssignedResources').val(currentFullProfile.assignedResources || 'No resources assigned');
+
+                // Populate Resources holding table in My Profile
+                let myResources = [];
+                if (currentFullProfile.resources && Array.isArray(currentFullProfile.resources) && currentFullProfile.resources.length) {
+                    myResources = currentFullProfile.resources;
+                } else if (typeof currentFullProfile.resources === 'string' && currentFullProfile.resources.trim()) {
+                    try { myResources = JSON.parse(currentFullProfile.resources); } catch(_) {}
+                } else if (currentFullProfile.assignedResources && currentFullProfile.assignedResources !== 'No resources assigned') {
+                    myResources = [{ name: currentFullProfile.assignedResources, serialNo: '-', issueDate: '-', returned: false, remarks: '-' }];
+                }
+                
+                if (myResources && myResources.length > 0) {
+                    const resRows = myResources.map(r => `
+                        <tr>
+                            <td class="fw-bold text-dark"><i class="bi bi-box-seam me-1 text-secondary"></i>${r.name || r.title || 'Item'}</td>
+                            <td class="font-monospace small">${r.serialNo || '-'}</td>
+                            <td class="small">${r.issueDate || '-'}</td>
+                            <td class="text-center">
+                                ${r.returned
+                                    ? `<span class="badge bg-secondary-subtle text-secondary border">Returned (${r.returnedDate || ''})</span>`
+                                    : '<span class="badge bg-success-subtle text-success border">Holding / Active</span>'
+                                }
+                            </td>
+                            <td class="small text-muted">${r.remarks || '-'}</td>
+                        </tr>
+                    `).join('');
+                    $('#myProfileResourcesTableBody').html(resRows);
+                } else {
+                    $('#myProfileResourcesTableBody').html('<tr><td colspan="5" class="text-muted text-center py-3">No company resources currently assigned.</td></tr>');
+                }
 
                 $('#myProfileStatus').val(currentFullProfile.status || 'Active');
                 if (currentFullProfile.status === 'Resigned') {
@@ -6122,10 +6180,10 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
 
         if (photoUrl) {
             $('#staffModalAvatarImg').attr('src', photoUrl).show();
-            $('#staffModalAvatarInitials').hide();
+            $('#staffModalAvatarInitials').addClass('d-none').removeClass('d-flex').hide();
         } else {
             $('#staffModalAvatarImg').attr('src', '').hide();
-            $('#staffModalAvatarInitials').text(initials).show();
+            $('#staffModalAvatarInitials').text(initials).removeClass('d-none').addClass('d-flex').show();
         }
 
         // Wire upload photo event handler
@@ -6151,7 +6209,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             try {
                 const dataUrl = await compressImageToDataUrl(file, 800, 0.85);
                 $('#staffModalAvatarImg').attr('src', dataUrl).show();
-                $('#staffModalAvatarInitials').hide();
+                $('#staffModalAvatarInitials').addClass('d-none').removeClass('d-flex').hide();
 
                 const res = await apiPost('uploadProfilePhoto', {
                     name: currentStaffTarget,
@@ -6472,28 +6530,6 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const hasCached = currentRecords && currentRecords.companies && currentRecords.companies.length;
         if (hasCached) {
             populateStaffModalHr(currentRecords, currentEmployees);
-        // Populate allowances breakdown
-        $('#staffAllowanceTableBody').empty();
-        const existingAllowances = (profile && profile.fixedAllowances && Array.isArray(profile.fixedAllowances) && profile.fixedAllowances.length)
-            ? profile.fixedAllowances
-            : ((profile && profile.fixedAllowance > 0) ? [{ category: 'Other Allowance', amount: profile.fixedAllowance, remarks: 'Monthly fixed' }] : []);
-        if (existingAllowances.length > 0) {
-            existingAllowances.forEach(a => addStaffAllowanceRow(a.category, a.amount, a.remarks));
-        } else {
-            addStaffAllowanceRow();
-        }
-        recalcStaffAllowanceTotal();
-
-        // Populate resources custody
-        $('#staffResourcesTableBody').empty();
-        const existingResources = (profile && profile.resources && Array.isArray(profile.resources) && profile.resources.length)
-            ? profile.resources
-            : (profile && profile.assignedResources && profile.assignedResources !== 'No resources assigned' ? [{ name: profile.assignedResources, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }] : []);
-        if (existingResources.length > 0) {
-            existingResources.forEach(r => addStaffResourceRow(r));
-        } else {
-            addStaffResourceRow();
-        }
             apiPost('hrBootstrap', {}).then(response => {
                 if (response && response.status === 'success' && response.data) {
                     cachedHrBootstrapData = response.data;
@@ -6508,6 +6544,31 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             }
             cachedHrBootstrapData = response.data;
             populateStaffModalHr(response.data.records, response.data.employees);
+        }
+
+        // Populate allowances breakdown - ALWAYS run for opened profile
+        $('#staffAllowanceTableBody').empty();
+        const existingAllowances = (profile && profile.fixedAllowances && Array.isArray(profile.fixedAllowances) && profile.fixedAllowances.length)
+            ? profile.fixedAllowances
+            : ((profile && profile.allowances && Array.isArray(profile.allowances) && profile.allowances.length)
+                ? profile.allowances
+                : ((profile && profile.fixedAllowance > 0) ? [{ category: 'Other Allowance', amount: profile.fixedAllowance, remarks: 'Monthly fixed' }] : []));
+        if (existingAllowances.length > 0) {
+            existingAllowances.forEach(a => addStaffAllowanceRow(a.category, a.amount, a.remarks));
+        } else {
+            addStaffAllowanceRow();
+        }
+        recalcStaffAllowanceTotal();
+
+        // Populate resources custody - ALWAYS run for opened profile
+        $('#staffResourcesTableBody').empty();
+        const existingResources = (profile && profile.resources && Array.isArray(profile.resources) && profile.resources.length)
+            ? profile.resources
+            : (profile && profile.assignedResources && profile.assignedResources !== 'No resources assigned' ? [{ name: profile.assignedResources, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }] : []);
+        if (existingResources.length > 0) {
+            existingResources.forEach(r => addStaffResourceRow(r));
+        } else {
+            addStaffResourceRow();
         }
     }
 

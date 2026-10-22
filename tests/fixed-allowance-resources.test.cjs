@@ -67,7 +67,7 @@ assert.equal(wages.pcbWages, 4200, 'PCB wage treatment');
 // 3. Contribution calculations
 const epf = calculateEpf(wages.epfWages, 30);
 assert.equal(epf.employee, Math.round(4650 * 0.11), 'Employee EPF 11%');
-assert.equal(epf.employer, Math.round(4650 * 0.12), 'Employer EPF 12% (>5000 threshold or 12%)');
+assert.equal(epf.employer, Math.round(4650 * 0.13), 'Employer EPF 13% (<= 5000 threshold)');
 
 const socso = calculateSocso(wages.socsoWages, 30);
 assert.ok(socso.employee > 0 && socso.employer > 0, 'SOCSO calculated on 4350');

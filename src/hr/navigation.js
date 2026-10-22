@@ -28,7 +28,7 @@ export function navigationFor(role) {
       hr('training','My Training','personal','mortarboard')
     ])
   ]}];
-  if(['HOD','HR','Admin'].includes(role))groups.push({id:'team',label:'My Team',icon:'people',items:[page('staff-mgmt','Team Directory','people','team'),page('leave-management','Leave Approvals','calendar2-check','team'),page('dashboard','Attendance Approvals','clock-history','team'),hr('claims','Claim Reviews','team'),hr('loans','Loan Reviews','team'),hr('appraisals','Appraisal Reviews','team')]});
+  if(['HOD','HR','Admin'].includes(role))groups.push({id:'team',label:'My Team',icon:'people',items:[page('staff-mgmt','Team Directory','people','team'),page('leave-management','Leave Approvals','calendar2-check','team'),page('dashboard','Attendance Approvals','clock-history','team'),hr('recruitment','Candidate Reviews','team','person-plus'),hr('claims','Claim Reviews','team'),hr('loans','Loan Reviews','team'),hr('appraisals','Appraisal Reviews','team')]});
   if(['HR','Admin'].includes(role))groups.push(
     {id:'people',label:'People & Organisation',icon:'building',items:[page('staff-mgmt','Employee Management','people','all'),hr('recruitment','Recruitment','all'),hr('letters','Letters & Correspondence','all')]},
     {id:'operations',label:'HR Operations',icon:'clipboard-check',items:['claims','loans','bookings','resourceAssignments','tax'].map((m,i)=>hr(m,['Claims & Reimbursement','Employee Loans','Booking Approvals','Resource Assignments','Tax Declarations'][i],'all'))},

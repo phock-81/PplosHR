@@ -849,6 +849,11 @@ onBeforeUnmount(() => {
                     </button>
                 </li>
                 <li class="nav-item flex-fill text-center" role="presentation">
+                    <button class="nav-link py-2 px-3 fw-semibold w-100" id="myprofile-tab-resources-btn" data-bs-toggle="pill" data-bs-target="#myprofile-tab-resources" type="button" role="tab">
+                        <i class="bi bi-laptop me-1"></i>Resources
+                    </button>
+                </li>
+                <li class="nav-item flex-fill text-center" role="presentation">
                     <button class="nav-link py-2 px-3 fw-semibold w-100" id="myprofile-tab-docs-btn" data-bs-toggle="pill" data-bs-target="#myprofile-tab-docs" type="button" role="tab">
                         <i class="bi bi-folder2-open me-1"></i>Documents &amp; Drive
                     </button>
@@ -998,15 +1003,24 @@ onBeforeUnmount(() => {
                 <!-- Tab 3: Salary & Statutory -->
                 <div class="tab-pane fade" id="myprofile-tab-salary" role="tabpanel">
                     <div class="profile-card-section mb-3">
-                        <div class="profile-salary-hero mb-3">
-                            <div>
-                                <span class="badge bg-success text-white px-2 py-1 mb-1 small fw-semibold">CONFIDENTIAL COMPENSATION</span>
-                                <h4 class="fw-bold text-success mb-0 d-flex align-items-center">
-                                    <span class="fs-6 me-2 text-muted fw-normal">Basic Salary:</span>
-                                    <input type="text" class="form-control-plaintext text-success fw-bold p-0 d-inline-block fs-4 w-auto" id="myProfileBasic" readonly value="RM 0.00">
-                                </h4>
+                        <div class="profile-salary-hero mb-3 flex-wrap gap-3">
+                            <div class="d-flex align-items-center flex-wrap gap-4">
+                                <div>
+                                    <span class="badge bg-success text-white px-2 py-1 mb-1 small fw-semibold">CONFIDENTIAL COMPENSATION</span>
+                                    <h4 class="fw-bold text-success mb-0 d-flex align-items-center">
+                                        <span class="fs-6 me-2 text-muted fw-normal">Basic Salary:</span>
+                                        <input type="text" class="form-control-plaintext text-success fw-bold p-0 d-inline-block fs-4 w-auto" id="myProfileBasic" readonly value="RM 0.00">
+                                    </h4>
+                                </div>
+                                <div class="border-start ps-3">
+                                    <span class="badge bg-primary text-white px-2 py-1 mb-1 small fw-semibold">FIXED ALLOWANCE</span>
+                                    <h4 class="fw-bold text-primary mb-0 d-flex align-items-center">
+                                        <span class="fs-6 me-2 text-muted fw-normal">Fixed Allowance:</span>
+                                        <input type="text" class="form-control-plaintext text-primary fw-bold p-0 d-inline-block fs-4 w-auto" id="myProfileFixedAllowance" readonly value="RM 0.00">
+                                    </h4>
+                                </div>
                             </div>
-                            <div class="d-flex gap-3 text-end">
+                            <div class="d-flex gap-3 text-end ms-auto">
                                 <div>
                                     <label class="text-muted small text-uppercase fw-bold mb-0" style="font-size:0.7rem;">Joined Date</label>
                                     <input type="text" class="form-control-plaintext text-end fw-semibold p-0 small" id="myProfileJoined" readonly value="-">
@@ -1034,6 +1048,24 @@ onBeforeUnmount(() => {
                             <div class="col-sm-6 col-md-3 profile-field-group">
                                 <label for="myProfileBankNo">Bank Account No.</label>
                                 <input type="text" class="form-control" id="myProfileBankNo" readonly>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-wallet2 text-primary me-1"></i>Fixed Allowance Breakdown</h6>
+                            <div class="table-responsive border rounded bg-white">
+                                <table class="table table-sm table-bordered align-middle mb-0" id="myProfileAllowanceTable">
+                                    <thead class="table-light small">
+                                        <tr>
+                                            <th style="width: 35%;">Allowance Category</th>
+                                            <th style="width: 25%;">Amount (RM)</th>
+                                            <th style="width: 40%;">Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="myProfileAllowanceTableBody">
+                                        <tr><td colspan="3" class="text-muted text-center py-2 small">No fixed allowances allocated</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -1067,6 +1099,34 @@ onBeforeUnmount(() => {
                         <div class="profile-field-group mt-2">
                             <label><i class="bi bi-moon-stars text-primary me-1"></i>Weekly Rest Days &amp; Shift Schedule</label>
                             <div id="myProfileRestDaysBadges" class="d-flex flex-wrap gap-2 p-2 border rounded bg-light"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Resources Holding -->
+                <div class="tab-pane fade" id="myprofile-tab-resources" role="tabpanel">
+                    <div class="profile-card-section mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-laptop me-1 text-primary"></i>Company Resources &amp; Equipment Holding</h6>
+                                <p class="text-muted small mb-0">Assets and company equipment currently assigned to you.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive border rounded bg-white">
+                            <table class="table table-sm table-bordered align-middle mb-0" id="myProfileResourcesTable">
+                                <thead class="table-light small">
+                                    <tr>
+                                        <th style="width: 25%;">Resource Name / Item</th>
+                                        <th style="width: 20%;">Serial No. / Tag</th>
+                                        <th style="width: 15%;">Date Issued</th>
+                                        <th class="text-center" style="width: 15%;">Status</th>
+                                        <th style="width: 25%;">Handover / Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="myProfileResourcesTableBody">
+                                    <tr><td colspan="5" class="text-muted text-center py-3">No company resources currently assigned.</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -1424,7 +1484,7 @@ onBeforeUnmount(() => {
                     <div class="d-flex align-items-center gap-3">
                         <div class="position-relative profile-modal-avatar-wrapper flex-shrink-0" style="width: 64px; height: 64px;">
                             <img id="staffModalAvatarImg" src="" class="rounded-circle object-fit-cover border shadow-sm w-100 h-100" alt="Staff Photo" style="display: none;" />
-                            <div id="staffModalAvatarInitials" class="rounded-circle bg-primary-subtle text-primary border fw-bold d-flex align-items-center justify-content-center shadow-sm w-100 h-100" style="font-size: 1.4rem;">--</div>
+                            <div id="staffModalAvatarInitials" class="rounded-circle bg-primary-subtle text-primary border fw-bold align-items-center justify-content-center shadow-sm w-100 h-100 d-none" style="font-size: 1.4rem;">--</div>
                             <button type="button" class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0 p-0 d-flex align-items-center justify-content-center shadow" id="btnUploadStaffModalPhoto" title="Upload or update profile photo (saves to staff Google Drive)" style="width: 24px; height: 24px; font-size: 11px;">
                                 <i class="bi bi-camera-fill"></i>
                             </button>

@@ -385,6 +385,8 @@ function isFieldWide(field) {
   if (!field) return false;
   if (field.type === 'textarea' || field.type === 'url') return true;
   if (active.value === 'jobTitles' && field.key === 'title') return false;
+  if (active.value === 'recruitment' && field.key === 'title') return false;
+  if (active.value === 'recruitment' && field.key === 'otherJobTitle') return true;
   if (['title', 'address', 'evidenceUrl', 'notes'].includes(field.key)) return true;
   return false;
 }
@@ -734,6 +736,17 @@ async function load(force=false){
 
 function session(e){clearOwnLeaveSummary();showDossierModal.value=false;showStatutoryModal.value=false;showYearEndModal.value=false;showLetterModal.value=false;dossierTargetEmployee.value='';loadVersion++;busy.value=false;saving.value=false;loadedScope.value=null;active.value='overview';scope.value='overview';pageLabel.value='Overview';user.value=e.detail;editor.value=null;detail.value=null;decision.value=null;if(user.value)load(false);}
 function options(field){
+  if(active.value==='recruitment'&&field.key==='jobTitle'){
+    const titles = (records.value.jobTitles || []).filter(j => j.availability !== 'Inactive');
+    const opts = titles.map(j => ({ value: j.title || j.code, label: j.title ? `${j.title} (${j.code || ''})` : j.code }));
+    return [...opts, { value: 'Other', label: 'Other (Not in library)' }];
+  }
+  if(active.value==='recruitment'&&field.key==='hod'){
+    let hods = employees.value.filter(e => e.status !== 'Resigned' && ['HOD', 'Admin', 'Supervisor', 'Manager'].includes(e.role));
+    if (!hods.length) hods = employees.value.filter(e => e.status !== 'Resigned');
+    return hods.map(e => ({ value: e.name, label: `${e.name} (${e.department || e.role})` }));
+  }
+
   if(field.type==='staff'){
     let all=employees.value.filter(e=>e.status!=='Resigned');
     if(active.value==='departments'&&field.key==='manager'){
@@ -776,13 +789,42 @@ function options(field){
     const bases=deduplicateByCode((records.value.workBases&&records.value.workBases.length)?records.value.workBases:DEFAULT_WORK_BASES);
     return [{value:'All',label:'All work bases'},...bases.filter(b=>b.availability!=='Inactive').map(b=>({value:(b.code||b.title||'').toUpperCase(),label:b.title?`${b.title} (${b.code})`:b.code}))];
   }
-  if(field.key==='workLocation'&&(active.value==='workSchedules'||active.value==='jobTitles')){
+  if((field.key==='workLocation'&&active.value==='workSchedules')||(field.key==='workLocation'&&active.value==='jobTitles')){
     const locs=deduplicateByCode((records.value.workLocations&&records.value.workLocations.length)?records.value.workLocations:DEFAULT_WORK_LOCATIONS);
     return [{value:'All',label:'All work locations'},...locs.filter(l=>l.availability!=='Inactive').map(l=>({value:String(l.code||l.title||'').toUpperCase(),label:l.title?`${l.title} (${l.code||l.title})`:String(l.code||l.title)}))];
   }
   return (field.options||[]).map(x=>({value:x,label:x}));
 }
+
+const selectedCategoryType = ref('workBases');
+function onCategoryTypeChange() {
+  if (selectedCategoryType.value && selectedCategoryType.value !== active.value) {
+    choose(selectedCategoryType.value);
+    edit();
+  }
+}
+watch(() => form.value?.jobTitle, (newVal) => {
+  if (active.value === 'recruitment' && newVal && newVal !== 'Other') {
+    const jt = (records.value.jobTitles || []).find(j => (j.title || j.code) === newVal || j.id === newVal);
+    if (jt) {
+      let deptId = jt.departmentId;
+      if (Array.isArray(deptId)) deptId = deptId[0];
+      else if (typeof deptId === 'string' && deptId.includes(',')) deptId = deptId.split(',')[0].trim();
+      const dept = (records.value.departments || []).find(d => d.id === deptId || d.code === deptId || d.title === deptId);
+      if (dept) {
+        form.value.department = dept.title || dept.code;
+        if (dept.manager) form.value.hod = dept.manager;
+      }
+      if (!form.value.hod) {
+        const hodEmp = (employees.value || []).find(e => (e.role === 'HOD' || e.role === 'Supervisor') && (e.department === form.value.department || e.departmentId === deptId));
+        if (hodEmp) form.value.hod = hodEmp.name;
+      }
+    }
+  }
+});
+
 function edit(r=null){
+  selectedCategoryType.value = active.value === 'workLocations' ? 'workLocations' : 'workBases';
   form.value=r?{...r}:Object.fromEntries(spec.value.fields.map(f=>[f.key,f.key==='employee'?user.value.name:f.type==='select'&&f.required&&!f.noDefault?(options(f)[0]?.value||''):f.key==='year'?new Date().getFullYear():'']));
   if(active.value==='workSchedules'){
     if(!r){
@@ -1048,6 +1090,36 @@ function printLetter(r){detail.value=r;nextTick(()=>window.print());}
 function handleFileUpload(event, fieldKey) {
   const file = event.target?.files?.[0];
   if (!file) return;
+  if (active.value === 'recruitment' && fieldKey === 'evidenceUrl') {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      saving.value = true;
+      try {
+        const res = await api('uploadCandidateCv', {
+          candidate: form.value.title || 'Candidate',
+          department: form.value.department || 'General',
+          jobTitle: (form.value.jobTitle === 'Other' ? form.value.otherJobTitle : form.value.jobTitle) || 'Position',
+          fileName: file.name,
+          fileData: dataUrl,
+          mimeType: file.type || 'application/pdf'
+        });
+        if (res && res.status === 'success' && res.url) {
+          form.value.evidenceUrl = res.url;
+          alert('Candidate CV uploaded to Google Drive successfully!');
+        } else {
+          throw new Error(res?.message || 'Upload failed');
+        }
+      } catch (err) {
+        alert('Failed to upload CV: ' + (err.message || err));
+      } finally {
+        saving.value = false;
+      }
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+
   if (file.type && file.type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1216,12 +1288,10 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='jobTitles'}" type="button" @click="choose('jobTitles')">
         <i class="bi bi-person-badge me-1"></i>Job Title Library
       </button>
-      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='workBases'}" type="button" @click="choose('workBases')">
-        <i class="bi bi-briefcase me-1"></i>Work Bases
+      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='workBases' || active==='workLocations'}" type="button" @click="choose('workBases')">
+        <i class="bi bi-geo-fill me-1"></i>Work Bases &amp; Locations
       </button>
-      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='workLocations'}" type="button" @click="choose('workLocations')">
-        <i class="bi bi-geo-alt me-1"></i>Work Locations
-      </button>
+      <span class="d-none" @click="choose('workLocations')"></span>
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='resources'}" type="button" @click="choose('resources')">
         <i class="bi bi-box-seam me-1"></i>Resource Catalogue
       </button>
@@ -1717,6 +1787,19 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
     </template>
   </template>
 
+  <!-- Category Switcher for Grouped Work Bases & Locations -->
+  <div v-if="['workBases','workLocations'].includes(active)" id="workBasesLocationsCategorySwitcher" class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded-3 border">
+    <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-funnel me-1"></i>Category:</span>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn fw-semibold" :class="active==='workBases' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workBases')">
+        <i class="bi bi-briefcase me-1"></i>Work Bases ({{ (records.workBases || []).length }})
+      </button>
+      <button type="button" class="btn fw-semibold" :class="active==='workLocations' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workLocations')">
+        <i class="bi bi-geo-alt me-1"></i>Work Locations ({{ (records.workLocations || []).length }})
+      </button>
+    </div>
+  </div>
+
   <!-- Specialized High-Density Layout for Work Bases -->
   <template v-else-if="active==='workBases'">
     <template v-if="orgViewMode==='tab'">
@@ -2016,7 +2099,15 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
  </template></div></div>
  <Teleport to="body">
  <div v-if="editor||decision||detail" class="hr-dialog-backdrop" :class="{'is-fullscreen-backdrop': isDialogFullscreen}" @keydown.tab="trapDialog" @keydown.esc="!saving&&(editor=null,decision=null,detail=null)">
-  <div v-if="editor" id="hrRecordDialog" class="hr-dialog" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDialogTitle" tabindex="-1"><form novalidate @submit.prevent="save" @input="clearFieldValidation" @change="clearFieldValidation"><div class="hr-dialog-head"><h4 id="hrDialogTitle">{{editor.id?'Edit':'New'}} · {{spec.label}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button type="button" class="btn-close" aria-label="Close" :disabled="saving" @click="editor=null"/></div></div><div class="hr-dialog-body"><div v-if="activeMultiDropdown" class="position-fixed top-0 start-0 w-100 h-100" style="z-index: 1055; background: transparent;" @click="activeMultiDropdown = null"></div><div v-if="error" role="alert" class="alert alert-danger">{{error}}</div><p v-if="active==='leaveOpeningBalances'" class="hr-note">Use an HR-verified balance, not a balance calculated from test leave. Selecting “Exclude existing test records” excludes the employee's existing leave records from this opening; it does not delete them.</p><div class="hr-form-grid"><div v-for="field in formFields" :key="field.key" :class="{'hr-form-wide': isFieldWide(field)}"><label class="form-label" :for="'hr-'+field.key">{{field.label}}{{field.required?' *':''}}</label><div v-if="isMultiSelect(field)" class="position-relative"><button type="button" :id="'hr-'+field.key" class="form-select text-start d-flex justify-content-between align-items-center w-100 bg-white" :class="{'is-invalid': validationErrors[field.key]}" @click="activeMultiDropdown = activeMultiDropdown === field.key ? null : field.key"><span class="text-truncate me-2" :class="{'text-muted': !form[field.key]}">{{ getMultiSelectDisplay(field) }}</span></button><div v-if="activeMultiDropdown === field.key" class="dropdown-menu show shadow-lg w-100 p-2 mt-1 border rounded-3" style="max-height: 250px; overflow-y: auto; z-index: 1060; position: absolute; left: 0; top: 100%;"><div v-for="opt in options(field)" :key="opt.value" class="form-check p-2 ps-4 mb-1 rounded hover-bg-light cursor-pointer user-select-none d-flex align-items-center" @click.stop="toggleMultiSelectOption(field, opt)"><input class="form-check-input me-2 mt-0 cursor-pointer" type="checkbox" :id="'chk-' + field.key + '-' + opt.value" :checked="isOptionSelected(field, opt)" @click.stop="toggleMultiSelectOption(field, opt)"/><label class="form-check-label w-100 cursor-pointer small fw-semibold text-dark mb-0" :for="'chk-' + field.key + '-' + opt.value">{{ opt.label }}</label></div></div></div><textarea v-else-if="field.type==='textarea'" :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :aria-invalid="Boolean(validationErrors[field.key])" rows="2" :required="field.required"/><select v-else-if="['select','staff','ref'].includes(field.type)" :id="'hr-'+field.key" v-model="form[field.key]" class="form-select" :aria-invalid="Boolean(validationErrors[field.key])" :required="field.required" :disabled="field.key==='employee'&&(!admin||scope==='personal')"><option value="">{{field.key==='inductionPolicy'?'No induction policy':field.key==='departmentId'?'Select department…':'Select…'}}</option><option v-for="o in options(field)" :key="o.value" :value="o.value">{{o.label}}</option></select><div v-else-if="field.type==='url'" class="hr-file-upload-container"><div class="input-group"><input :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" type="text" :placeholder="'Paste document link or choose a file'" :required="field.required"/><label class="btn btn-outline-primary mb-0 d-flex align-items-center" :for="'hr-file-'+field.key" style="cursor:pointer;"><i class="bi bi-upload me-1"></i> Choose File<input :id="'hr-file-'+field.key" type="file" class="d-none" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" @change="handleFileUpload($event, field.key)"/></label></div><div v-if="form[field.key]" class="d-flex align-items-center gap-2 mt-2 p-2 bg-light border rounded"><span class="badge bg-primary text-truncate" style="max-width:280px;"><i class="bi bi-file-earmark-check me-1"></i>{{form[field.key].startsWith('data:')?'Attached Document ('+(form[field.key].slice(5,form[field.key].indexOf(';'))||'file')+')':form[field.key]}}</span><a v-if="form[field.key].startsWith('http')||form[field.key].startsWith('data:')" :href="form[field.key]" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i> View</a><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @click="form[field.key]=''"><i class="bi bi-x"></i> Clear</button></div></div><input v-else :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :readonly="(active==='workSchedules'&&field.key==='netHours')||(active==='jobTitles'&&field.key==='code')" :aria-invalid="Boolean(validationErrors[field.key])" :type="active==='workSchedules'&&['start','end'].includes(field.key)?'time':field.type" :required="field.required" :min="field.min" :max="field.max" :step="field.type==='number'?'any':undefined" :placeholder="active==='jobTitles'&&field.key==='code'?'Auto-assigned by system':undefined"/><small v-if="validationErrors[field.key]" class="hr-field-error" role="alert">{{validationErrors[field.key]}}</small></div></div>
+  <div v-if="editor" id="hrRecordDialog" class="hr-dialog" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDialogTitle" tabindex="-1"><form novalidate @submit.prevent="save" @input="clearFieldValidation" @change="clearFieldValidation"><div class="hr-dialog-head"><h4 id="hrDialogTitle">{{editor.id?'Edit':'New'}} · {{spec.label}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button type="button" class="btn-close" aria-label="Close" :disabled="saving" @click="editor=null"/></div></div><div class="hr-dialog-body"><div v-if="activeMultiDropdown" class="position-fixed top-0 start-0 w-100 h-100" style="z-index: 1055; background: transparent;" @click="activeMultiDropdown = null"></div><div v-if="error" role="alert" class="alert alert-danger">{{error}}</div>
+      <div v-if="['workBases','workLocations'].includes(active) && !editor?.id" class="hr-form-wide mb-3 p-2 bg-light border rounded-3">
+        <label class="form-label fw-bold text-dark small mb-1" for="hr-category-selector"><i class="bi bi-tags me-1 text-primary"></i>Category to Create *</label>
+        <select id="hr-category-selector" class="form-select form-select-sm fw-semibold" v-model="selectedCategoryType" @change="onCategoryTypeChange">
+          <option value="workBases">💼 Work Base (e.g. Office, Site, Factory)</option>
+          <option value="workLocations">📍 Work Location (e.g. Penang HQ, Selangor Branch)</option>
+        </select>
+        <small class="text-muted" style="font-size:0.75rem;">Choose whether you are defining an operational work base or a geographic work location.</small>
+      </div><p v-if="active==='leaveOpeningBalances'" class="hr-note">Use an HR-verified balance, not a balance calculated from test leave. Selecting “Exclude existing test records” excludes the employee's existing leave records from this opening; it does not delete them.</p><div class="hr-form-grid"><div v-for="field in formFields" :key="field.key" :class="{'hr-form-wide': isFieldWide(field)}"><label class="form-label" :for="'hr-'+field.key">{{field.label}}{{field.required?' *':''}}</label><div v-if="isMultiSelect(field)" class="position-relative"><button type="button" :id="'hr-'+field.key" class="form-select text-start d-flex justify-content-between align-items-center w-100 bg-white" :class="{'is-invalid': validationErrors[field.key]}" @click="activeMultiDropdown = activeMultiDropdown === field.key ? null : field.key"><span class="text-truncate me-2" :class="{'text-muted': !form[field.key]}">{{ getMultiSelectDisplay(field) }}</span></button><div v-if="activeMultiDropdown === field.key" class="dropdown-menu show shadow-lg w-100 p-2 mt-1 border rounded-3" style="max-height: 250px; overflow-y: auto; z-index: 1060; position: absolute; left: 0; top: 100%;"><div v-for="opt in options(field)" :key="opt.value" class="form-check p-2 ps-4 mb-1 rounded hover-bg-light cursor-pointer user-select-none d-flex align-items-center" @click.stop="toggleMultiSelectOption(field, opt)"><input class="form-check-input me-2 mt-0 cursor-pointer" type="checkbox" :id="'chk-' + field.key + '-' + opt.value" :checked="isOptionSelected(field, opt)" @click.stop="toggleMultiSelectOption(field, opt)"/><label class="form-check-label w-100 cursor-pointer small fw-semibold text-dark mb-0" :for="'chk-' + field.key + '-' + opt.value">{{ opt.label }}</label></div></div></div><textarea v-else-if="field.type==='textarea'" :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :aria-invalid="Boolean(validationErrors[field.key])" rows="2" :required="field.required"/><select v-else-if="['select','staff','ref'].includes(field.type)" :id="'hr-'+field.key" v-model="form[field.key]" class="form-select" :aria-invalid="Boolean(validationErrors[field.key])" :required="field.required" :disabled="field.key==='employee'&&(!admin||scope==='personal')"><option value="">{{field.key==='inductionPolicy'?'No induction policy':field.key==='departmentId'?'Select department…':'Select…'}}</option><option v-for="o in options(field)" :key="o.value" :value="o.value">{{o.label}}</option></select><div v-else-if="field.type==='url'" class="hr-file-upload-container"><div class="input-group"><input :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" type="text" :placeholder="'Paste document link or choose a file'" :required="field.required"/><label class="btn btn-outline-primary mb-0 d-flex align-items-center" :for="'hr-file-'+field.key" style="cursor:pointer;"><i class="bi bi-upload me-1"></i> Choose File<input :id="'hr-file-'+field.key" type="file" class="d-none" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" @change="handleFileUpload($event, field.key)"/></label></div><div v-if="form[field.key]" class="d-flex align-items-center gap-2 mt-2 p-2 bg-light border rounded"><span class="badge bg-primary text-truncate" style="max-width:280px;"><i class="bi bi-file-earmark-check me-1"></i>{{form[field.key].startsWith('data:')?'Attached Document ('+(form[field.key].slice(5,form[field.key].indexOf(';'))||'file')+')':form[field.key]}}</span><a v-if="form[field.key].startsWith('http')||form[field.key].startsWith('data:')" :href="form[field.key]" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i> View</a><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @click="form[field.key]=''"><i class="bi bi-x"></i> Clear</button></div></div><input v-else :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :readonly="(active==='workSchedules'&&field.key==='netHours')||(active==='jobTitles'&&field.key==='code')" :aria-invalid="Boolean(validationErrors[field.key])" :type="active==='workSchedules'&&['start','end'].includes(field.key)?'time':field.type" :required="field.required" :min="field.min" :max="field.max" :step="field.type==='number'?'any':undefined" :placeholder="active==='jobTitles'&&field.key==='code'?'Auto-assigned by system':undefined"/><small v-if="validationErrors[field.key]" class="hr-field-error" role="alert">{{validationErrors[field.key]}}</small></div></div>
 <div v-if="active==='workSchedules'" class="w-100 mt-3">
   <div class="border rounded-3 p-3 bg-light-subtle">
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -2137,9 +2228,9 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
 <style scoped>
 .enterprise-ops-card {
   width: 100%;
-  max-width: 100%;
-  margin-left: 0;
-  margin-right: 0;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .enterprise-ops-grid {
   display: grid;

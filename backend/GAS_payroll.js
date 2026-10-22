@@ -1537,6 +1537,7 @@ function doPost(e) {
     if(action==='hrBootstrap')return hrBootstrap_(actor,body.payload||{});
     if(action==='staffDocumentUpload')return hrStaffDocumentUpload_(body.payload||{},actor);
     if(action==='uploadProfilePhoto')return hrUploadProfilePhoto_(body.payload||{},actor);
+    if(action==='uploadCandidateCv')return hrUploadCandidateCv_(body.payload||{},actor);
     if(action==='hrSave')return hrSave_(body.payload||{},actor);
     if(action==='hrTransition')return hrTransition_(body.payload||{},actor);
     if(action==='getStatutorySettings')return getStatutorySettings(actor);
@@ -2541,54 +2542,18 @@ const HR_MODULES = {
     "label": "Recruitment pipeline",
     "icon": "person-plus",
     "group": "People",
-    "admin": true,
     "fields": [
-      {
-        "key": "title",
-        "label": "Candidate name",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "jobTitle",
-        "label": "Position",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "email",
-        "label": "Email",
-        "type": "email"
-      },
-      {
-        "key": "date",
-        "label": "Interview / target date",
-        "type": "date"
-      },
-      {
-        "key": "stage",
-        "label": "Stage",
-        "type": "select",
-        "options": [
-          "Applied",
-          "Shortlisted",
-          "Interview",
-          "Offer",
-          "Hired",
-          "Rejected"
-        ],
-        "required": true
-      },
-      {
-        "key": "evidenceUrl",
-        "label": "CV link",
-        "type": "url"
-      },
-      {
-        "key": "notes",
-        "label": "Interview notes",
-        "type": "textarea"
-      }
+      { "key": "title", "label": "Candidate name", "type": "text", "required": true },
+      { "key": "contactNo", "label": "Contact number", "type": "text" },
+      { "key": "jobTitle", "label": "Position", "type": "select", "options": ["Other"], "required": true },
+      { "key": "otherJobTitle", "label": "Other position (if not in list)", "type": "text" },
+      { "key": "department", "label": "Department", "type": "text" },
+      { "key": "hod", "label": "HOD (Head of Department)", "type": "staff" },
+      { "key": "date", "label": "Interview / target date", "type": "date" },
+      { "key": "stage", "label": "Stage", "type": "select", "options": ["Applied", "Shortlisted", "Interview", "Offer", "Hired", "Rejected"], "required": true },
+      { "key": "evidenceUrl", "label": "CV link", "type": "url" },
+      { "key": "notes", "label": "Interview notes", "type": "textarea" },
+      { "key": "recommendation", "label": "HOD Decision / Recommendation", "type": "select", "options": ["Pending Review", "Recommended", "Rejected"] }
     ]
   },
   "training": {
@@ -2966,6 +2931,7 @@ function hrCanSee_(module,r,actor) {
   if(hrAdmin_(actor)) return true;
   if(['resources','cycles','companies','departments','claimTypes','jobGrades','jobTitles','workSchedules','workBases','workLocations'].indexOf(module)!==-1) return true;
   if(module==='letters') return hrName_(r.employee)===hrName_(actor.name) && r.status==='Issued';
+  if(module==='recruitment' && hrManager_(actor) && (!r.hod || hrName_(r.hod)===hrName_(actor.name) || hrName_(r.department)===hrName_(actor.department) || hrTeam_(actor, r.hod))) return true;
   if(['claims','loans','bookings','appraisals'].indexOf(module)!==-1 && hrManager_(actor) && (hrName_(r.manager)===hrName_(actor.name) || hrTeam_(actor, r.employee))) return true;
   return hrName_(r.employee)===hrName_(actor.name);
 }
@@ -3552,7 +3518,7 @@ function hrWrite_(module,record,actor,old,action) {
 function hrSave_(payload,actor) {
   const module=payload.module,spec=HR_MODULES[module];hrAssert_(!!spec,'Unknown HR module.');
   hrAssert_(module!=='profiles','Use Employee Management to edit the employee master.');
-  hrAssert_(hrAdmin_(actor)||spec.self,'Only HR administrators can create these records.');
+  hrAssert_(hrAdmin_(actor)||spec.self||(module==='recruitment'&&hrManager_(actor)),'Only HR administrators can create these records.');
   const rows=hrRows_(module);
   if(!payload.id&&payload.requestId){hrAssert_(/^[a-zA-Z0-9-]{8,100}$/.test(payload.requestId),'Invalid request reference.');const prior=rows.find(r=>r.id===payload.requestId);if(prior){hrAssert_(prior.createdBy===actor.name,'Request reference already exists.');return jsonResponse({status:'success',data:hrPublic_(prior)});}}
   let old=payload.id?rows.find(r=>r.id===payload.id):null;
@@ -3565,7 +3531,7 @@ function hrSave_(payload,actor) {
     if(payload.version!=null && module!=='workSchedules') hrAssert_(Number(payload.version)===Number(old.version),'Record changed. Refresh and try again.');
     hrAssert_(!spec.immutable,'Adjustments cannot be edited; add a reversing adjustment.');
     const oldStatus = old.status || old.availability || 'Active';
-    hrAssert_(hrAdmin_(actor)&&['Active','Draft','Open','Applied','Shortlisted','Interview','Offer','Hired','Rejected','Planned','Available','Inactive','Maintenance'].indexOf(oldStatus)!==-1,'Submitted records cannot be edited.');
+    hrAssert_((hrAdmin_(actor)||(module==='recruitment'&&hrManager_(actor)))&&['Active','Draft','Open','Applied','Shortlisted','Interview','Offer','Hired','Rejected','Planned','Available','Inactive','Maintenance'].indexOf(oldStatus)!==-1,'Submitted records cannot be edited.');
   }
   const record=hrValidate_(module,payload.record||{},actor);
   record.id=old?old.id:(payload.requestId||Utilities.getUuid());record.createdBy=old?old.createdBy:actor.name;record.createdAt=old?old.createdAt:new Date().toISOString();
@@ -3584,7 +3550,20 @@ function hrSave_(payload,actor) {
   else if(module==='letters')record.status=(payload.record&&payload.record.status==='Issued')||payload.status==='Issued'?'Issued':'Draft';
   else if(module==='training')record.status='Planned';
   else if(module==='adjustments')record.status='Posted';
-  else if(module==='recruitment')record.status=record.stage;
+  else if(module==='recruitment'){ record.status=record.stage; 
+  if (module === 'recruitment' && record.recommendation === 'Recommended' && (!old || old.recommendation !== 'Recommended')) {
+    try {
+      const adminEmail = (typeof HR_ADMIN_EMAIL_ !== 'undefined' && HR_ADMIN_EMAIL_) ? HR_ADMIN_EMAIL_ : 'phock.solution@gmail.com';
+      MailApp.sendEmail({
+        to: adminEmail,
+        subject: '[Candidate Recommended] ' + (record.title || 'Candidate') + ' for ' + (record.jobTitle || 'Position') + ' - Ready for HR Onboarding',
+        body: 'Hello HR Team,\n\nCandidate ' + (record.title || '') + ' has been Recommended by HOD (' + (record.hod || actor.name) + ') for position: ' + (record.jobTitle || '') + ' (' + (record.department || 'General') + ').\n\nContact Number: ' + (record.contactNo || '-') + '\nHOD Decision: Recommended\nInterview Notes: ' + (record.notes || '-') + '\nCV Link: ' + (record.evidenceUrl || '-') + '\n\nPlease review and proceed with the employment / offer process.'
+      });
+    } catch (recErr) {
+      console.log('Recruitment Recommendation Notification Error: ' + recErr);
+    }
+  }
+ }
   else record.status=record.availability || 'Active';
   if(module==='resourceAssignments'){hrResourceLimit_(record);record.employeeId=profile?profile.employeeNo:'';record.status='Assigned';hrAssert_(!hrRows_('resourceAssignments').some(r=>r.resourceId===record.resourceId&&r.status==='Assigned'),'Resource is already assigned. Record its return first.');hrAssert_(hrRows_('resources').some(r=>r.id===record.resourceId&&r.availability==='Available'),'Resource is unavailable.');hrAssert_(!hrRows_('bookings').some(r=>r.resourceId===record.resourceId&&['Approved','Pending admin','Pending manager'].indexOf(r.status)!==-1&&r.end>=record.date),'Resource has an active or upcoming booking. Resolve the booking first.');}
   if(module==='claims') hrClaimLimit_(record);
@@ -4475,6 +4454,61 @@ function hrStaffDocumentUpload_(payload,actor){
   hrAudit_(actor,'profiles',{id:target.row[24],employee:hrName_(target.row[0]),title:'Staff attachment: '+String(payload.category||'Document').slice(0,100)},'Uploaded');
   return jsonResponse({status:'success',fileUrl:url,staffFolderId:folder.getId(),staffFolderUrl:folder.getUrl(),attachment,version});
 }
+
+function hrUploadCandidateCv_(payload, actor) {
+  const candidate = String(payload.candidate || payload.name || 'Candidate').trim() || 'Candidate';
+  const department = String(payload.department || 'General').trim() || 'General';
+  const jobTitle = String(payload.jobTitle || 'General').trim() || 'General';
+
+  let rootFolder;
+  try {
+    const parentId = (typeof STAFF_FOLDER_PARENT_ !== 'undefined' && STAFF_FOLDER_PARENT_) ? STAFF_FOLDER_PARENT_ : '1b-EtKWOg981bwjBzwTvYiqthX3X7TyKf';
+    rootFolder = DriveApp.getFolderById(parentId);
+  } catch (_) {
+    try { rootFolder = DriveApp.getRootFolder(); } catch (e) { throw new Error('Google Drive unavailable: ' + e); }
+  }
+
+  function getOrCreateChildFolder_(parent, folderName) {
+    const safeName = String(folderName).replace(/[/\\]/g, '-').trim() || 'General';
+    const it = parent.getFoldersByName(safeName);
+    if (it.hasNext()) return it.next();
+    return parent.createFolder(safeName);
+  }
+
+  const recruitFolder = getOrCreateChildFolder_(rootFolder, 'Recruitment');
+  const deptFolder = getOrCreateChildFolder_(recruitFolder, department);
+  const jobFolder = getOrCreateChildFolder_(deptFolder, jobTitle);
+  const candidateFolder = getOrCreateChildFolder_(jobFolder, candidate);
+
+  let encoded = String(payload.fileData || '');
+  let mime = String(payload.mimeType || 'application/pdf').toLowerCase();
+  if (encoded.indexOf(';base64,') !== -1) {
+    const parts = encoded.split(';base64,');
+    if (parts[0].indexOf(':') !== -1) mime = parts[0].split(':')[1];
+    encoded = parts[1];
+  }
+  const bytes = Utilities.base64Decode(encoded);
+  hrAssert_(bytes.length > 0 && bytes.length <= 15 * 1024 * 1024, 'CV file must be 15 MB or less.');
+
+  const safeCand = candidate.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = payload.fileName || ('CV_' + safeCand + '.pdf');
+
+  const blob = Utilities.newBlob(bytes, mime || 'application/pdf', fileName);
+  const file = candidateFolder.createFile(blob);
+  try {
+    if (file && typeof file.setSharing === 'function' && typeof DriveApp !== 'undefined' && DriveApp.Access) {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    }
+  } catch (_) {}
+
+  return jsonResponse({
+    status: 'success',
+    url: file.getUrl(),
+    fileName: fileName,
+    folderUrl: candidateFolder.getUrl()
+  });
+}
+
 function hrUploadProfilePhoto_(payload, actor) {
   const staffName = payload.name || (actor && actor.name) || '';
   hrAssert_(staffName, 'Staff name is required.');
