@@ -2163,10 +2163,66 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                     currentUser.photoUrl = pPhoto;
                 }
 
+                // Resolve Department & Grade using cached HR bootstrap data or fetch
+                let hrRecords = cachedHrBootstrapData?.records;
+                if (!hrRecords || !hrRecords.departments) {
+                    try {
+                        const hrBootRes = await apiPost('hrBootstrap', {});
+                        if (hrBootRes && hrBootRes.status === 'success' && hrBootRes.data) {
+                            cachedHrBootstrapData = hrBootRes.data;
+                            hrRecords = hrBootRes.data.records;
+                        }
+                    } catch (_) {}
+                }
+                const allDepts = hrRecords?.departments || cachedDepartments || [];
+                const allGrades = hrRecords?.jobGrades || cachedJobGrades || [];
+                const allCos = hrRecords?.companies || cachedCompanies || [];
+
+                let deptNameDisplay = '';
+                const rawDept = currentFullProfile.departmentId || currentFullProfile.department || '';
+                if (rawDept) {
+                    const foundDept = allDepts.find(d => String(d.id) === String(rawDept) || String(d.code) === String(rawDept) || String(d.title) === String(rawDept));
+                    if (foundDept) {
+                        deptNameDisplay = (foundDept.code && foundDept.title && foundDept.code !== foundDept.title)
+                            ? `${foundDept.title} (${foundDept.code})`
+                            : (foundDept.title || foundDept.code || foundDept.id);
+                    }
+                }
+                if (!deptNameDisplay) {
+                    deptNameDisplay = currentFullProfile.departmentName || currentFullProfile.department || (rawDept ? String(rawDept) : '-');
+                }
+
+                let gradeNameDisplay = '';
+                const rawGrade = currentFullProfile.gradeId || currentFullProfile.gradeCode || '';
+                if (rawGrade) {
+                    const foundGrade = allGrades.find(g => String(g.id) === String(rawGrade) || String(g.code).toUpperCase() === String(rawGrade).toUpperCase() || String(g.title) === String(rawGrade));
+                    if (foundGrade) {
+                        gradeNameDisplay = `${foundGrade.code} — Grade ${foundGrade.code} - ${foundGrade.title}`;
+                    }
+                }
+                if (!gradeNameDisplay) {
+                    if (currentFullProfile.gradeCode) gradeNameDisplay = `Grade ${currentFullProfile.gradeCode}`;
+                    else if (rawGrade) {
+                        const m = String(rawGrade).match(/grade[-_\s]?([a-z0-9]+)/i);
+                        if (m) gradeNameDisplay = `Grade ${m[1].toUpperCase()}`;
+                        else gradeNameDisplay = String(rawGrade);
+                    } else {
+                        gradeNameDisplay = '-';
+                    }
+                }
+
+                let coNameDisplay = currentFullProfile.companyName || '';
+                const rawCo = currentFullProfile.companyId || currentFullProfile.company || '';
+                if (!coNameDisplay && rawCo) {
+                    const foundCo = allCos.find(c => String(c.id) === String(rawCo) || String(c.code) === String(rawCo) || String(c.title) === String(rawCo));
+                    if (foundCo) coNameDisplay = foundCo.title || foundCo.code || foundCo.id;
+                    else coNameDisplay = String(rawCo);
+                }
+
                 $('#myProfileHeroName').text(currentUser.name || '-');
                 $('#myProfileHeroJobTitle').text(currentFullProfile.jobTitle || 'Team Member');
-                $('#myProfileHeroDepartment').text(currentFullProfile.departmentName || currentFullProfile.departmentId || '-');
-                $('#myProfileHeroCompany').text(currentFullProfile.companyName || currentFullProfile.companyId || '-');
+                $('#myProfileHeroDepartment').text(deptNameDisplay || '-');
+                $('#myProfileHeroCompany').text(coNameDisplay || '-');
                 $('#myProfileHeroEmpNo').text('ID: ' + (currentFullProfile.employeeNo || '-'));
                 $('#myProfileHeroRole').text(currentFullProfile.role || 'Staff');
                 $('#myProfileHeroStatus').html(`<i class="bi bi-circle-fill me-1" style="font-size: 0.5rem; vertical-align: middle;"></i>${currentFullProfile.status || 'Active'}`);
@@ -2227,11 +2283,11 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
 
                 $('#myProfileEmployeeNo').val(currentFullProfile.employeeNo || '-');
                 $('#myProfileBiometricId').val(currentFullProfile.biometricId || '-');
-                $('#myProfileCompany').val(currentFullProfile.companyName || currentFullProfile.companyId || '-');
-                $('#myProfileDepartment').val(currentFullProfile.departmentName || currentFullProfile.departmentId || '-');
+                $('#myProfileCompany').val(coNameDisplay || '-');
+                $('#myProfileDepartment').val(deptNameDisplay || '-');
                 $('#myProfileManager').val(currentFullProfile.manager || 'None (Direct Report)');
                 $('#myProfileJobTitle').val(currentFullProfile.jobTitle || 'Team Member');
-                $('#myProfileJobGrade').val(currentFullProfile.gradeCode ? `Grade ${currentFullProfile.gradeCode}` : (currentFullProfile.gradeId || '-'));
+                $('#myProfileJobGrade').val(gradeNameDisplay || '-');
                 $('#myProfileEmail').val(currentFullProfile.email || '-');
                 $('#myProfileWorkBase').val(currentFullProfile.workBase || '-');
                 $('#myProfileLocation').val(currentFullProfile.location || '-');
@@ -6012,6 +6068,10 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             selectedType = catList[0].title;
         }
 
+        if (selectedModel === '[]' || selectedModel === 'No resources assigned' || selectedModel === 'null') {
+            selectedModel = '';
+        }
+        const hasOther = catList.some(c => String(c.title || '').trim().toLowerCase() === 'other');
         const catOptions = catList.map(c => {
             const isSel = (c.title === selectedType) ? 'selected' : '';
             return `<option value="${c.title}" ${isSel}>${c.title}</option>`;
@@ -6023,7 +6083,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                     <select class="form-select form-select-sm staff-res-type" required>
                         <option value="">-- Select Type --</option>
                         ${catOptions}
-                        <option value="Other" ${selectedType === 'Other' ? 'selected' : ''}>Other</option>
+                        ${hasOther ? '' : `<option value="Other" ${selectedType === 'Other' ? 'selected' : ''}>Other</option>`}
                     </select>
                 </td>
                 <td>
@@ -6635,9 +6695,21 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
 
         // Populate resources custody - ALWAYS run for opened profile
         $('#staffResourcesTableBody').empty();
-        const existingResources = (profile && profile.resources && Array.isArray(profile.resources) && profile.resources.length)
-            ? profile.resources
-            : (profile && profile.assignedResources && profile.assignedResources !== 'No resources assigned' ? [{ name: profile.assignedResources, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }] : []);
+        let existingResources = [];
+        if (profile && profile.resources && Array.isArray(profile.resources) && profile.resources.length) {
+            existingResources = profile.resources;
+        } else if (profile && profile.assignedResources) {
+            const raw = String(profile.assignedResources).trim();
+            if (raw && raw !== '[]' && raw !== 'No resources assigned' && raw !== 'null') {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) existingResources = parsed;
+                    else existingResources = [{ name: raw, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }];
+                } catch(_) {
+                    existingResources = [{ name: raw, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }];
+                }
+            }
+        }
         if (existingResources.length > 0) {
             existingResources.forEach(r => addStaffResourceRow(r));
         } else {

@@ -591,13 +591,7 @@ const filtered=computed(()=>{
     if(selDept){
       if(record.departmentId){if(String(record.departmentId)!==selDept)return false;}
       else if(record.employee){const emp=employeeMap.value.get(record.employee);if(emp&&emp.departmentId&&String(emp.departmentId)!==selDept)return false;}
-      else if(active.value==='resources'){
-    if(!r){
-      form.value.code=getNextResourceCode();
-      form.value.availability='Available';
-    }
-  }
-  if(active.value==='departments'){if(String(record.id)!==selDept)return false;}
+      else if(active.value==='departments'){if(String(record.id)!==selDept)return false;}
     }
     if(selCo){
       if(record.companyId){
@@ -897,6 +891,12 @@ function edit(r=null){
     if(!r){
       form.value.code=getNextDepartmentCode();
       if(!form.value.companyId) form.value.companyId = 'ALL';
+    }
+  }
+  if(active.value==='resources'){
+    if(!r){
+      form.value.code=getNextResourceCode();
+      form.value.availability='Available';
     }
   }
   validationErrors.value={};
@@ -2093,7 +2093,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
   </template>
 
   <!-- Standard High-Density Card for other HR modules -->
-  <template v-else>
+  <template v-else-if="!['jobGrades','workSchedules','jobTitles','companies','departments','workBases','workLocations','resources','claimTypes'].includes(active)">
     <template v-if="orgViewMode==='tab'">
       <div class="row g-3 mb-3">
         <div v-for="r in pagedRecords" :key="r.id" class="col-md-6 col-lg-4">

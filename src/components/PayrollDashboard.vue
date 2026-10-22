@@ -924,12 +924,12 @@ onBeforeUnmount(() => {
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6 profile-field-group">
-                                <label for="myProfileContact"><i class="bi bi-telephone text-primary"></i> Contact No.</label>
-                                <input type="text" class="form-control border-primary" id="myProfileContact" placeholder="e.g. +6012-3456789">
-                            </div>
-                            <div class="col-md-6 profile-field-group">
                                 <label for="myProfileEmergency"><i class="bi bi-heart-pulse text-danger"></i> Emergency Contact</label>
                                 <input type="text" class="form-control border-primary" id="myProfileEmergency" placeholder="Name & contact phone">
+                            </div>
+                            <div class="col-md-6 profile-field-group">
+                                <label for="myProfileContact"><i class="bi bi-telephone text-primary"></i> Contact No.</label>
+                                <input type="text" class="form-control border-primary" id="myProfileContact" placeholder="e.g. +6012-3456789">
                             </div>
                             <div class="col-12 profile-field-group">
                                 <label for="myProfileAddress"><i class="bi bi-geo-alt text-success"></i> Residential Address</label>
@@ -1606,12 +1606,12 @@ onBeforeUnmount(() => {
                                 </select>
                             </div>
                             <div class="col-md-6 col-sm-6">
-                                <label class="form-label fw-bold small text-muted" for="staffContact">Contact No.</label>
-                                <input type="text" class="form-control" id="staffContact">
-                            </div>
-                            <div class="col-md-6 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffEmergency">Emergency Contact</label>
                                 <input type="text" class="form-control" id="staffEmergency">
+                            </div>
+                            <div class="col-md-6 col-sm-6">
+                                <label class="form-label fw-bold small text-muted" for="staffContact">Contact No.</label>
+                                <input type="text" class="form-control" id="staffContact">
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-bold small text-muted" for="staffAddress">Residential Address</label>
