@@ -1529,6 +1529,16 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         });
         $('#staff-mgmt > .main-card button').filter(function(){return $(this).text().includes('Add Staff');}).toggle(isAdmin);
         openHrPage('overview','overview',menu.find('[data-hr-module="overview"]')[0]);
+        // Auto preload personal profile, leave, and team data in background
+        setTimeout(() => {
+            if (currentUser) {
+                try { void loadMyProfile(); } catch(_) {}
+                try { void fetchMyLeave(); } catch(_) {}
+                if (['HOD', 'Supervisor', 'HR', 'Admin'].includes(currentUser.role)) {
+                    try { void fetchLeaveManagementData(); } catch(_) {}
+                }
+            }
+        }, 700);
         if ((isAdmin || ['HOD','Supervisor'].includes(currentUser?.role)) && window.innerWidth > 768) initializeApp();
     }
 

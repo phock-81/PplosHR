@@ -711,25 +711,77 @@ async function load(force=false){
     });
 
     // Background pre-warming for 'team' scope when viewing overview
-    if (requestedScope === 'overview' && ['HOD','Supervisor','HR','Admin'].includes(user.value?.role)) {
-      setTimeout(() => {
-        const cached = CacheManager.getHrRecords() || {};
-        if (!cached['team'] || (Date.now() - (cached['team'].timestamp || 0) > 120000)) {
-          api('hrBootstrap', { scope: 'team' }).then(teamRes => {
-            if (teamRes?.status === 'success' && teamRes.data) {
+    if (requestedScope === 'overview') {
+      setTimeout(async () => {
+        const role = user.value?.role || 'User';
+        const isManagerOrAdmin = ['HOD', 'Supervisor', 'HR', 'Admin'].includes(role);
+        const isAdminRole = ['HR', 'Admin'].includes(role);
+
+        // Stage 1: Auto pre-load "My Workspace" (personal scope)
+        try {
+          const cached = CacheManager.getHrRecords() || {};
+          if (!cached['personal'] || (Date.now() - (cached['personal'].timestamp || 0) > 120000)) {
+            const personalRes = await api('hrBootstrap', { scope: 'personal' });
+            if (personalRes?.status === 'success' && personalRes.data) {
               CacheManager.saveHrRecords({
-                team: {
-                  records: teamRes.data.records,
-                  employees: teamRes.data.employees,
-                  teamLeave: teamRes.data.teamLeave,
-                  audit: teamRes.data.audit,
+                personal: {
+                  records: personalRes.data.records,
+                  employees: personalRes.data.employees,
+                  teamLeave: personalRes.data.teamLeave,
+                  audit: personalRes.data.audit,
                   timestamp: Date.now()
                 }
               });
             }
-          }).catch(() => {});
+          }
+        } catch (_) {}
+
+        // Stage 2: Auto pre-load "My Team" (team scope for HOD / HR / Admin)
+        if (isManagerOrAdmin) {
+          try {
+            const cached = CacheManager.getHrRecords() || {};
+            if (!cached['team'] || (Date.now() - (cached['team'].timestamp || 0) > 120000)) {
+              const teamRes = await api('hrBootstrap', { scope: 'team' });
+              if (teamRes?.status === 'success' && teamRes.data) {
+                CacheManager.saveHrRecords({
+                  team: {
+                    records: teamRes.data.records,
+                    employees: teamRes.data.employees,
+                    teamLeave: teamRes.data.teamLeave,
+                    audit: teamRes.data.audit,
+                    timestamp: Date.now()
+                  }
+                });
+              }
+            }
+          } catch (_) {}
         }
-      }, 1000);
+
+        // Stage 3: Auto pre-load "Subsequent if any" (all scope for HR / Admin)
+        if (isAdminRole) {
+          try {
+            const cached = CacheManager.getHrRecords() || {};
+            if (!cached['all'] || (Date.now() - (cached['all'].timestamp || 0) > 120000)) {
+              const allRes = await api('hrBootstrap', { scope: 'all' });
+              if (allRes?.status === 'success' && allRes.data) {
+                CacheManager.saveHrRecords({
+                  all: {
+                    records: allRes.data.records,
+                    employees: allRes.data.employees,
+                    teamLeave: allRes.data.teamLeave,
+                    audit: allRes.data.audit,
+                    timestamp: Date.now()
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('peopleos-prewarm-complete', { detail: { role } }));
+        }
+      }, 400);
     }
   }catch(e){if(version===loadVersion)error.value=e.message;}finally{if(version===loadVersion)busy.value=false;}
 }
@@ -858,7 +910,11 @@ async function deleteRecord(r) {
 }
 
 function edit(r=null){
-  selectedCategoryType.value = active.value === 'workLocations' ? 'workLocations' : 'workBases';
+  if (['workLocations', 'workBases'].includes(active.value)) {
+    selectedCategoryType.value = active.value === 'workLocations' ? 'workLocations' : 'workBases';
+  } else if (['jobTitles', 'jobGrades'].includes(active.value)) {
+    selectedCategoryType.value = active.value === 'jobGrades' ? 'jobGrades' : 'jobTitles';
+  }
   form.value=r?{...r}:Object.fromEntries(spec.value.fields.map(f=>[f.key,f.key==='employee'?user.value.name:f.type==='select'&&f.required&&!f.noDefault?(options(f)[0]?.value||''):f.key==='year'?new Date().getFullYear():'']));
   if(active.value==='workSchedules'){
     if(!r){
@@ -1079,7 +1135,12 @@ function actions(module,r){const a=[],self=r.employee===user.value?.name,manager
  if(module==='claims'&&r.status==='Approved'&&admin.value&&!self)push('paid','Record payment');
  if(module==='loans'&&r.status==='Approved'&&admin.value&&!self)push('disburse','Record disbursement');
  if(module==='loans'&&r.status==='Active'&&admin.value)push('repay','Record repayment');
- if(module==='bookings'&&r.status==='Pending admin'&&admin.value&&!self){push('approve','Approve');push('reject','Reject');}
+ if(module==='bookings'){
+  if(r.status==='Pending manager'&&((manager||admin.value)&&!self)){push('approve','Recommend');push('reject','Reject');}
+  else if(r.status==='Pending admin'&&admin.value&&!self){push('approve','Approve');push('reject','Reject');}
+  else if(r.status==='Approved'&&admin.value){push('ready','Mark Resource Ready');}
+  else if(['Ready','Ready for Collection'].includes(r.status)&&(self||admin.value)){push('acknowledge','Acknowledge & Receive');}
+}
  if(module==='resourceAssignments'&&r.status==='Assigned'&&admin.value&&scope.value==='all')push('returnResource','Record return');
  if(module==='tax'&&r.status==='Submitted'&&admin.value&&!self)push('review','Mark reviewed');
  if(module==='cycles'&&r.status==='Active'&&admin.value)push('closeCycle','Close cycle');
@@ -1319,15 +1380,13 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='companies'}" type="button" @click="choose('companies')">
         <i class="bi bi-building me-1"></i>Companies
       </button>
-      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='jobGrades'}" type="button" @click="choose('jobGrades')">
-        <i class="bi bi-layers me-1"></i>Job Grades
-      </button>
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='departments'}" type="button" @click="choose('departments')">
         <i class="bi bi-diagram-3 me-1"></i>Departments
       </button>
-      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='jobTitles'}" type="button" @click="choose('jobTitles')">
-        <i class="bi bi-person-badge me-1"></i>Job Title Library
+      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='jobTitles' || active==='jobGrades'}" type="button" @click="choose('jobTitles')">
+        <i class="bi bi-person-badge me-1"></i>Job Titles &amp; Grades
       </button>
+      <span class="d-none" @click="choose('jobGrades')"></span>
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='workBases' || active==='workLocations'}" type="button" @click="choose('workBases')">
         <i class="bi bi-geo-fill me-1"></i>Work Bases &amp; Locations
       </button>
@@ -1447,78 +1506,165 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
     <p>{{canCreate?'Add your first record to get started.':'Records will appear when HR assigns them to you.'}}</p>
   </div>
   
-  <!-- Specialized High-Density Layout for Job Grades -->
-  <template v-if="active==='jobGrades'">
-    <template v-if="orgViewMode==='tab'">
-      <div class="row g-3 mb-3">
-        <div v-for="r in pagedRecords" :key="r.id" class="col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm border rounded-3 p-3 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="d-flex align-items-center gap-2">
-                  <div class="staff-avatar bg-primary text-white fw-bold">G{{r.code}}</div>
-                  <div>
-                    <h6 class="fw-bold mb-0 text-dark">{{r.title}}</h6>
-                    <span class="badge bg-primary text-white small mt-1"><i class="bi bi-award-fill me-1"></i>Grade {{r.code}}</span>
-                  </div>
-                </div>
-                <span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span>
-              </div>
-              <div class="d-flex flex-wrap gap-1 mt-2 mb-2">
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle small"><i class="bi bi-heart-pulse-fill me-1"></i>Flexi: RM {{money(inductionFlexi(r.code))}}</span>
-                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle small"><i class="bi bi-clipboard2-pulse-fill me-1"></i>Check-up: {{inductionCheckup(r.code)}}</span>
-                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small"><i class="bi bi-cup-hot-fill me-1"></i>Meals: {{inductionMeals(r.code)}}</span>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="bi bi-clock-history me-1"></i>OT: {{inductionOt(r.code)}}</span>
-                <span class="badge border small" style="background:#f3e8ff; color:#6b21a8; border-color:#e9d5ff;"><i class="bi bi-calendar3 me-1"></i>AL: {{inductionLeave(r.code)}}</span>
-              </div>
-            </div>
-            <div class="d-flex gap-2 pt-2 border-top mt-auto">
-              <button v-if="editable(r)" class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit Grade</button>
-              <button class="btn btn-sm btn-outline-secondary" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
-            </div>
-          </div>
-        </div>
+  <!-- Specialized High-Density Layout for Grouped Job Titles & Grades -->
+  <template v-if="active==='jobTitles' || active==='jobGrades'">
+    <!-- Category Switcher for Grouped Job Titles & Grades -->
+    <div id="jobTitlesGradesCategorySwitcher" class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded-3 border">
+      <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-funnel me-1"></i>Category:</span>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn fw-semibold" :class="active==='jobTitles' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('jobTitles')">
+          <i class="bi bi-person-badge me-1"></i>Job Title Library ({{ (records.jobTitles || []).length }})
+        </button>
+        <button type="button" class="btn fw-semibold" :class="active==='jobGrades' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('jobGrades')">
+          <i class="bi bi-layers me-1"></i>Job Grades ({{ (records.jobGrades || []).length }})
+        </button>
       </div>
-    </template>
-    <template v-else>
-      <div class="table-responsive main-card p-0 shadow-sm border rounded-3 mb-3">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Grade Code</th>
-              <th>Grade Name</th>
-              <th>Flexi-Wellness</th>
-              <th>Check-Up</th>
-              <th>Meals (&gt;250km)</th>
-              <th>Mileage</th>
-              <th>OT Eligibility</th>
-              <th>AL Scale</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in pagedRecords" :key="r.id">
-              <td><span class="badge bg-primary text-white fw-bold px-2 py-1"><i class="bi bi-award-fill me-1"></i>Grade {{r.code}}</span></td>
-              <td class="fw-bold">{{r.title}}</td>
-              <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">RM {{money(inductionFlexi(r.code))}} / yr</span></td>
-              <td class="small">{{inductionCheckup(r.code)}}</td>
-              <td class="small">{{inductionMeals(r.code)}}</td>
-              <td class="small">Car 0.50 / Bike 0.20</td>
-              <td class="small">{{inductionOt(r.code)}}</td>
-              <td><span class="badge border" style="background:#f3e8ff; color:#6b21a8; border-color:#e9d5ff;">{{inductionLeave(r.code)}}</span></td>
-              <td><span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span></td>
-              <td class="text-end">
-                <div class="d-flex justify-content-end gap-1">
-                  <button v-if="editable(r)" class="btn btn-outline-primary btn-sm fw-bold" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit</button>
-                  <button class="btn btn-outline-secondary btn-sm" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
+    </div>
+
+<!-- Job Title Library Content -->
+  <template v-if="active==='jobTitles'">
+    <template v-if="orgViewMode==='tab'">
+      <div class="row g-3 mb-3">
+        <div v-for="r in pagedRecords" :key="r.id" class="col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm border rounded-3 p-3 d-flex flex-column justify-content-between">
+            <div>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="staff-avatar bg-primary text-white fw-bold"><i class="bi bi-person-badge"></i></div>
+                  <div>
+                    <h6 class="fw-bold mb-0 text-dark">{{r.title}}</h6>
+                    <div class="text-muted small mt-1 d-flex flex-wrap gap-1 align-items-center">
+                      <span class="badge bg-secondary-subtle text-secondary border fw-bold">{{r.code}}</span>
+                      <span class="badge bg-primary-subtle text-primary border fw-bold">{{label('jobGrades', r.gradeId)}}</span>
+                      <span v-if="r.departmentId" class="badge bg-info-subtle text-info border fw-bold"><i class="bi bi-diagram-3 me-1"></i>{{formatMultiDepartmentLabel(r.departmentId)}}</span>
+                      <span v-if="r.workBase" class="badge bg-light text-dark border"><i class="bi bi-briefcase me-1"></i>{{r.workBase === 'All' ? 'All Bases' : r.workBase}}</span>
+                      <span v-if="r.workLocation" class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>{{r.workLocation === 'All' ? 'All Locations' : r.workLocation}}</span>
+                    </div>
+                  </div>
+                </div>
+                <span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span>
+              </div>
+            </div>
+            <div class="d-flex gap-2 pt-2 border-top mt-auto">
+              <button v-if="editable(r)" class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit Title</button>
+              <button class="btn btn-sm btn-outline-secondary" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+    <template v-else>
+      <div class="table-responsive main-card p-0 shadow-sm border rounded-3 mb-3">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Job Code</th>
+              <th>Job Title</th>
+              <th>Department</th>
+              <th>Job Grade</th>
+              <th>Work Based</th>
+              <th>Work Location</th>
+              <th>Status</th>
+              <th>Description</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in pagedRecords" :key="r.id">
+              <td><span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-bold">{{r.code}}</span></td>
+              <td class="fw-bold text-primary">{{r.title}}</td>
+              <td><span v-if="r.departmentId" class="badge bg-info-subtle text-info border px-2 py-1 fw-bold"><i class="bi bi-diagram-3 me-1"></i>{{formatMultiDepartmentLabel(r.departmentId)}}</span><span v-else class="text-muted small">—</span></td>
+              <td><span class="badge bg-primary-subtle text-primary border px-2 py-1 fw-bold">{{label('jobGrades', r.gradeId)}}</span></td>
+              <td><span class="badge bg-light text-dark border">{{r.workBase || 'All'}}</span></td>
+              <td><span class="badge bg-light text-dark border">{{r.workLocation || 'All'}}</span></td>
+              <td><span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span></td>
+              <td class="small text-muted">{{r.notes || '—'}}</td>
+              <td class="text-end">
+                <div class="d-flex justify-content-end gap-1">
+                  <button v-if="editable(r)" class="btn btn-outline-primary btn-sm fw-bold" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit</button>
+                  <button class="btn btn-outline-secondary btn-sm" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </template>
+
+<!-- Job Grades Content -->
+  <template v-else-if="active==='jobGrades'">
+    <template v-if="orgViewMode==='tab'">
+      <div class="row g-3 mb-3">
+        <div v-for="r in pagedRecords" :key="r.id" class="col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm border rounded-3 p-3 d-flex flex-column justify-content-between">
+            <div>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="staff-avatar bg-primary text-white fw-bold">G{{r.code}}</div>
+                  <div>
+                    <h6 class="fw-bold mb-0 text-dark">{{r.title}}</h6>
+                    <span class="badge bg-primary text-white small mt-1"><i class="bi bi-award-fill me-1"></i>Grade {{r.code}}</span>
+                  </div>
+                </div>
+                <span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span>
+              </div>
+              <div class="d-flex flex-wrap gap-1 mt-2 mb-2">
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle small"><i class="bi bi-heart-pulse-fill me-1"></i>Flexi: RM {{money(inductionFlexi(r.code))}}</span>
+                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle small"><i class="bi bi-clipboard2-pulse-fill me-1"></i>Check-up: {{inductionCheckup(r.code)}}</span>
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small"><i class="bi bi-cup-hot-fill me-1"></i>Meals: {{inductionMeals(r.code)}}</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="bi bi-clock-history me-1"></i>OT: {{inductionOt(r.code)}}</span>
+                <span class="badge border small" style="background:#f3e8ff; color:#6b21a8; border-color:#e9d5ff;"><i class="bi bi-calendar3 me-1"></i>AL: {{inductionLeave(r.code)}}</span>
+              </div>
+            </div>
+            <div class="d-flex gap-2 pt-2 border-top mt-auto">
+              <button v-if="editable(r)" class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit Grade</button>
+              <button class="btn btn-sm btn-outline-secondary" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+    <template v-else>
+      <div class="table-responsive main-card p-0 shadow-sm border rounded-3 mb-3">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Grade Code</th>
+              <th>Grade Name</th>
+              <th>Flexi-Wellness</th>
+              <th>Check-Up</th>
+              <th>Meals (&gt;250km)</th>
+              <th>Mileage</th>
+              <th>OT Eligibility</th>
+              <th>AL Scale</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in pagedRecords" :key="r.id">
+              <td><span class="badge bg-primary text-white fw-bold px-2 py-1"><i class="bi bi-award-fill me-1"></i>Grade {{r.code}}</span></td>
+              <td class="fw-bold">{{r.title}}</td>
+              <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">RM {{money(inductionFlexi(r.code))}} / yr</span></td>
+              <td class="small">{{inductionCheckup(r.code)}}</td>
+              <td class="small">{{inductionMeals(r.code)}}</td>
+              <td class="small">Car 0.50 / Bike 0.20</td>
+              <td class="small">{{inductionOt(r.code)}}</td>
+              <td><span class="badge border" style="background:#f3e8ff; color:#6b21a8; border-color:#e9d5ff;">{{inductionLeave(r.code)}}</span></td>
+              <td><span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span></td>
+              <td class="text-end">
+                <div class="d-flex justify-content-end gap-1">
+                  <button v-if="editable(r)" class="btn btn-outline-primary btn-sm fw-bold" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit</button>
+                  <button class="btn btn-outline-secondary btn-sm" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </template>
   </template>
 
   <!-- Specialized High-Density Layout for Work Schedules -->
@@ -1621,77 +1767,6 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
               <td class="text-end">
                 <button v-if="editable(r)" class="btn btn-outline-primary btn-sm fw-semibold me-1" @click="edit(r)">Edit</button>
                 <button class="btn btn-outline-secondary btn-sm" @click="detail=r">Details</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
-  </template>
-
-  <!-- Specialized High-Density Layout for Job Titles -->
-  <template v-else-if="active==='jobTitles'">
-    <template v-if="orgViewMode==='tab'">
-      <div class="row g-3 mb-3">
-        <div v-for="r in pagedRecords" :key="r.id" class="col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm border rounded-3 p-3 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="d-flex align-items-center gap-2">
-                  <div class="staff-avatar bg-primary text-white fw-bold"><i class="bi bi-person-badge"></i></div>
-                  <div>
-                    <h6 class="fw-bold mb-0 text-dark">{{r.title}}</h6>
-                    <div class="text-muted small mt-1 d-flex flex-wrap gap-1 align-items-center">
-                      <span class="badge bg-secondary-subtle text-secondary border fw-bold">{{r.code}}</span>
-                      <span class="badge bg-primary-subtle text-primary border fw-bold">{{label('jobGrades', r.gradeId)}}</span>
-                      <span v-if="r.departmentId" class="badge bg-info-subtle text-info border fw-bold"><i class="bi bi-diagram-3 me-1"></i>{{formatMultiDepartmentLabel(r.departmentId)}}</span>
-                      <span v-if="r.workBase" class="badge bg-light text-dark border"><i class="bi bi-briefcase me-1"></i>{{r.workBase === 'All' ? 'All Bases' : r.workBase}}</span>
-                      <span v-if="r.workLocation" class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>{{r.workLocation === 'All' ? 'All Locations' : r.workLocation}}</span>
-                    </div>
-                  </div>
-                </div>
-                <span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span>
-              </div>
-            </div>
-            <div class="d-flex gap-2 pt-2 border-top mt-auto">
-              <button v-if="editable(r)" class="btn btn-sm btn-outline-primary fw-bold flex-grow-1" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit Title</button>
-              <button class="btn btn-sm btn-outline-secondary" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
-    <template v-else>
-      <div class="table-responsive main-card p-0 shadow-sm border rounded-3 mb-3">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Job Code</th>
-              <th>Job Title</th>
-              <th>Department</th>
-              <th>Job Grade</th>
-              <th>Work Based</th>
-              <th>Work Location</th>
-              <th>Status</th>
-              <th>Description</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in pagedRecords" :key="r.id">
-              <td><span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-bold">{{r.code}}</span></td>
-              <td class="fw-bold text-primary">{{r.title}}</td>
-              <td><span v-if="r.departmentId" class="badge bg-info-subtle text-info border px-2 py-1 fw-bold"><i class="bi bi-diagram-3 me-1"></i>{{formatMultiDepartmentLabel(r.departmentId)}}</span><span v-else class="text-muted small">—</span></td>
-              <td><span class="badge bg-primary-subtle text-primary border px-2 py-1 fw-bold">{{label('jobGrades', r.gradeId)}}</span></td>
-              <td><span class="badge bg-light text-dark border">{{r.workBase || 'All'}}</span></td>
-              <td><span class="badge bg-light text-dark border">{{r.workLocation || 'All'}}</span></td>
-              <td><span class="hr-status" :class="{'is-complete':['Active','Available'].includes(r.availability||r.status),'is-rejected':['Inactive'].includes(r.availability||r.status)}">{{r.availability||r.status||'Active'}}</span></td>
-              <td class="small text-muted">{{r.notes || '—'}}</td>
-              <td class="text-end">
-                <div class="d-flex justify-content-end gap-1">
-                  <button v-if="editable(r)" class="btn btn-outline-primary btn-sm fw-bold" @click="edit(r)"><i class="bi bi-pencil-square me-1"></i>Edit</button>
-                  <button class="btn btn-outline-secondary btn-sm" @click="detail=r"><i class="bi bi-eye me-1"></i>Details</button>
-                </div>
               </td>
             </tr>
           </tbody>
@@ -2149,6 +2224,14 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
           <option value="workLocations">📍 Work Location (e.g. Penang HQ, Selangor Branch)</option>
         </select>
         <small class="text-muted" style="font-size:0.75rem;">Choose whether you are defining an operational work base or a geographic work location.</small>
+      </div>
+      <div v-if="['jobTitles','jobGrades'].includes(active) && !editor?.id" class="hr-form-wide mb-3 p-2 bg-light border rounded-3">
+        <label class="form-label fw-bold text-dark small mb-1" for="hr-category-selector-jobs"><i class="bi bi-tags me-1 text-primary"></i>Category to Create *</label>
+        <select id="hr-category-selector-jobs" class="form-select form-select-sm fw-semibold" v-model="selectedCategoryType" @change="onCategoryTypeChange">
+          <option value="jobTitles">👤 Job Title (Title Library)</option>
+          <option value="jobGrades">🎖️ Job Grade (Grade Level &amp; Entitlements)</option>
+        </select>
+        <small class="text-muted" style="font-size:0.75rem;">Choose whether you are adding a job title to the library or configuring a job grade tier.</small>
       </div><p v-if="active==='leaveOpeningBalances'" class="hr-note">Use an HR-verified balance, not a balance calculated from test leave. Selecting “Exclude existing test records” excludes the employee's existing leave records from this opening; it does not delete them.</p><div class="hr-form-grid"><div v-for="field in formFields" :key="field.key" :class="{'hr-form-wide': isFieldWide(field)}"><label class="form-label" :for="'hr-'+field.key">{{field.label}}{{field.required?' *':''}}</label><div v-if="isMultiSelect(field)" class="position-relative"><button type="button" :id="'hr-'+field.key" class="form-select text-start d-flex justify-content-between align-items-center w-100 bg-white" :class="{'is-invalid': validationErrors[field.key]}" @click="activeMultiDropdown = activeMultiDropdown === field.key ? null : field.key"><span class="text-truncate me-2" :class="{'text-muted': !form[field.key]}">{{ getMultiSelectDisplay(field) }}</span></button><div v-if="activeMultiDropdown === field.key" class="dropdown-menu show shadow-lg w-100 p-2 mt-1 border rounded-3" style="max-height: 250px; overflow-y: auto; z-index: 1060; position: absolute; left: 0; top: 100%;"><div v-for="opt in options(field)" :key="opt.value" class="form-check p-2 ps-4 mb-1 rounded hover-bg-light cursor-pointer user-select-none d-flex align-items-center" @click.stop="toggleMultiSelectOption(field, opt)"><input class="form-check-input me-2 mt-0 cursor-pointer" type="checkbox" :id="'chk-' + field.key + '-' + opt.value" :checked="isOptionSelected(field, opt)" @click.stop="toggleMultiSelectOption(field, opt)"/><label class="form-check-label w-100 cursor-pointer small fw-semibold text-dark mb-0" :for="'chk-' + field.key + '-' + opt.value">{{ opt.label }}</label></div></div></div><textarea v-else-if="field.type==='textarea'" :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :aria-invalid="Boolean(validationErrors[field.key])" rows="2" :required="field.required"/><select v-else-if="['select','staff','ref'].includes(field.type)" :id="'hr-'+field.key" v-model="form[field.key]" class="form-select" :aria-invalid="Boolean(validationErrors[field.key])" :required="field.required" :disabled="field.key==='employee'&&(!admin||scope==='personal')"><option value="">{{field.key==='inductionPolicy'?'No induction policy':field.key==='departmentId'?'Select department…':'Select…'}}</option><option v-for="o in options(field)" :key="o.value" :value="o.value">{{o.label}}</option></select><div v-else-if="field.type==='url'" class="hr-file-upload-container"><div class="input-group"><input :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" type="text" :placeholder="'Paste document link or choose a file'" :required="field.required"/><label class="btn btn-outline-primary mb-0 d-flex align-items-center" :for="'hr-file-'+field.key" style="cursor:pointer;"><i class="bi bi-upload me-1"></i> Choose File<input :id="'hr-file-'+field.key" type="file" class="d-none" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" @change="handleFileUpload($event, field.key)"/></label></div><div v-if="form[field.key]" class="d-flex align-items-center gap-2 mt-2 p-2 bg-light border rounded"><span class="badge bg-primary text-truncate" style="max-width:280px;"><i class="bi bi-file-earmark-check me-1"></i>{{form[field.key].startsWith('data:')?'Attached Document ('+(form[field.key].slice(5,form[field.key].indexOf(';'))||'file')+')':form[field.key]}}</span><a v-if="form[field.key].startsWith('http')||form[field.key].startsWith('data:')" :href="form[field.key]" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i> View</a><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @click="form[field.key]=''"><i class="bi bi-x"></i> Clear</button></div></div><input v-else :id="'hr-'+field.key" v-model="form[field.key]" class="form-control" :readonly="(active==='workSchedules'&&field.key==='netHours')||(active==='jobTitles'&&field.key==='code')||(active==='resources'&&field.key==='code')" :aria-invalid="Boolean(validationErrors[field.key])" :type="active==='workSchedules'&&['start','end'].includes(field.key)?'time':field.type" :required="field.required" :min="field.min" :max="field.max" :step="field.type==='number'?'any':undefined" :placeholder="(active==='jobTitles'&&field.key==='code')||(active==='resources'&&field.key==='code')?'Auto-assigned by system':undefined"/><small v-if="validationErrors[field.key]" class="hr-field-error" role="alert">{{validationErrors[field.key]}}</small></div></div>
 <div v-if="active==='workSchedules'" class="w-100 mt-3">
   <div class="border rounded-3 p-3 bg-light-subtle">
@@ -2234,8 +2317,19 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
     </div>
   </div>
 </div></div><div class="hr-dialog-footer"><button class="btn btn-outline-secondary" type="button" :disabled="saving" @click="editor=null">Cancel</button><button type="submit" class="btn btn-primary" :disabled="saving" @click="save">{{saving?'Saving…':spec.self?'Submit request':'Save record'}}</button></div></form></div>
-  <div v-else-if="decision" class="hr-dialog" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDecisionTitle" tabindex="-1"><form @submit.prevent="act"><div class="hr-dialog-head"><h4 id="hrDecisionTitle">{{decision.label}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button type="button" class="btn-close" aria-label="Close" :disabled="saving" @click="decision=null"/></div></div><div class="hr-dialog-body"><div v-if="error" role="alert" class="alert alert-danger">{{error}}</div><p>{{primary(decision.record)}} · {{decision.record.employee}}</p><p v-if="decision.command==='finalise'" class="hr-note">Final score averages the self and manager ratings. Your rating is used when no manager rating exists.</p><template v-if="['selfReview','managerReview','finalise'].includes(decision.command)"><label for="hrRating" class="form-label">Rating (1–5)</label><input id="hrRating" v-model="decision.rating" type="number" min="1" max="5" step=".1" class="form-control mb-3" required/></template><template v-if="['paid','disburse','repay'].includes(decision.command)"><template v-if="decision.command==='repay'"><label for="hrRepayment" class="form-label">Repayment amount (RM)</label><input id="hrRepayment" v-model="decision.repayment" type="number" min=".01" :max="decision.record.outstanding" step=".01" class="form-control mb-3" required/></template><label for="hrPaymentReference" class="form-label">Payment reference</label><input id="hrPaymentReference" v-model="decision.reference" class="form-control mb-3" required/><p class="text-muted small">Records an external payment. No bank transfer is initiated.</p></template><label for="hrDecisionComments" class="form-label">{{decision.command==='reject'?'Rejection reason':'Comments'}}</label><textarea id="hrDecisionComments" v-model="decision.comments" class="form-control" rows="2" :required="decision.command==='reject'"/></div><div class="hr-dialog-footer"><button type="button" class="btn btn-outline-secondary" :disabled="saving" @click="decision=null">Cancel</button><button type="submit" class="btn btn-primary" :disabled="saving" @click="act">{{saving?'Recording…':'Confirm '+decision.label.toLowerCase()}}</button></div></form></div>
-  <div v-else-if="detail" class="hr-dialog hr-detail" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDetailTitle" tabindex="-1"><div class="hr-dialog-head"><h4 id="hrDetailTitle">{{primary(detail)}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button class="btn-close" aria-label="Close" @click="detail=null"/></div></div><div class="hr-dialog-body"><span class="hr-status" :class="{'is-complete':['Approved','Completed','Paid','Reviewed','Issued','Active','Available'].includes(detail.status||detail.availability),'is-rejected':['Rejected','Cancelled','Inactive'].includes(detail.status||detail.availability)}">{{detail.status||detail.availability||'Active'}}</span><dl><template v-for="field in spec?.fields||[]" :key="field.key"><dt>{{field.label}}</dt><dd><template v-if="field.type==='url'&&detail[field.key]"><a :href="detail[field.key]" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"><i class="bi bi-box-arrow-up-right"></i> View / Download Document</a><div v-if="detail[field.key].startsWith('data:image')" class="mt-2"><img :src="detail[field.key]" alt="Preview" class="img-thumbnail" style="max-height:180px;"/></div></template><span v-if="field.key==='departmentId'&&active==='jobTitles'">{{formatMultiDepartmentLabel(detail[field.key])}}</span><span v-else>{{value(field,detail)}}</span></dd></template><template v-for="key in ['inductionPolicyVersion','inductionCompanyId','inductionGradeCode','selfRating','selfComments','managerRating','managerComments','finalRating','finalComments','decisionComments','paymentReference','outstanding','repayments','updatedBy','updatedAt']" :key="key"><dt v-if="detail[key]!=null">{{key.replace(/([A-Z])/g,' $1')}}</dt><dd v-if="detail[key]!=null">{{detail[key]}}</dd></template></dl></div><div class="hr-dialog-footer"><button v-if="editable(detail)" class="btn btn-primary" type="button" @click="edit(detail); detail=null"><i class="bi bi-pencil-square me-1"></i> Edit record</button><button class="btn btn-outline-secondary" type="button" @click="detail=null">Close</button></div></div>
+  <div v-else-if="decision" class="hr-dialog" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDecisionTitle" tabindex="-1"><form @submit.prevent="act"><div class="hr-dialog-head"><h4 id="hrDecisionTitle">{{decision.label}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button type="button" class="btn-close" aria-label="Close" :disabled="saving" @click="decision=null"/></div></div><div class="hr-dialog-body"><div v-if="error" role="alert" class="alert alert-danger">{{error}}</div><p>{{primary(decision.record)}} · {{decision.record.employee}}</p><p v-if="decision.command==='finalise'" class="hr-note">Final score averages the self and manager ratings. Your rating is used when no manager rating exists.</p><template v-if="['selfReview','managerReview','finalise'].includes(decision.command)"><label for="hrRating" class="form-label">Rating (1–5)</label><input id="hrRating" v-model="decision.rating" type="number" min="1" max="5" step=".1" class="form-control mb-3" required/></template><template v-if="['paid','disburse','repay'].includes(decision.command)"><template v-if="decision.command==='repay'"><label for="hrRepayment" class="form-label">Repayment amount (RM)</label><input id="hrRepayment" v-model="decision.repayment" type="number" min=".01" :max="decision.record.outstanding" step=".01" class="form-control mb-3" required/></template><label for="hrPaymentReference" class="form-label">Payment reference</label><input id="hrPaymentReference" v-model="decision.reference" class="form-control mb-3" required/><p class="text-muted small">Records an external payment. No bank transfer is initiated.</p></template><label for="hrDecisionComments" class="form-label">{{decision.command==='reject'?'Rejection reason':decision.command==='ready'?'Collection / Handover instructions (e.g. pickup location, serial no.)':decision.command==='acknowledge'?'Acknowledgment remarks':decision.command==='approve'&&decision.record?.status==='Pending manager'?'HOD recommendation remarks':'Comments'}}</label><textarea id="hrDecisionComments" v-model="decision.comments" class="form-control" rows="2" :required="decision.command==='reject'"/></div><div class="hr-dialog-footer"><button type="button" class="btn btn-outline-secondary" :disabled="saving" @click="decision=null">Cancel</button><button type="submit" class="btn btn-primary" :disabled="saving" @click="act">{{saving?'Recording…':'Confirm '+decision.label.toLowerCase()}}</button></div></form></div>
+  <div v-else-if="detail" class="hr-dialog hr-detail" :class="{'is-fullscreen': isDialogFullscreen}" role="dialog" aria-modal="true" aria-labelledby="hrDetailTitle" tabindex="-1"><div class="hr-dialog-head"><h4 id="hrDetailTitle">{{primary(detail)}}</h4><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" :title="isDialogFullscreen ? 'Exit Full Screen' : 'Full Screen'" @click="isDialogFullscreen = !isDialogFullscreen"><i :class="isDialogFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen'"></i><span class="small d-none d-sm-inline">{{ isDialogFullscreen ? 'Exit Fullscreen' : 'Full Screen' }}</span></button><button class="btn-close" aria-label="Close" @click="detail=null"/></div></div><div class="hr-dialog-body"><span class="hr-status" :class="{'is-complete':['Approved','Completed','Paid','Reviewed','Issued','Active','Available'].includes(detail.status||detail.availability),'is-rejected':['Rejected','Cancelled','Inactive'].includes(detail.status||detail.availability)}">{{detail.status||detail.availability||'Active'}}</span><dl><template v-for="field in spec?.fields||[]" :key="field.key"><dt>{{field.label}}</dt><dd><template v-if="field.type==='url'&&detail[field.key]"><a :href="detail[field.key]" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"><i class="bi bi-box-arrow-up-right"></i> View / Download Document</a><div v-if="detail[field.key].startsWith('data:image')" class="mt-2"><img :src="detail[field.key]" alt="Preview" class="img-thumbnail" style="max-height:180px;"/></div></template><span v-if="field.key==='departmentId'&&active==='jobTitles'">{{formatMultiDepartmentLabel(detail[field.key])}}</span><span v-else>{{value(field,detail)}}</span></dd></template><div v-if="['bookings'].includes(active)||detail.resourceId" class="mt-3 p-3 bg-light rounded-3 border">
+  <h6 class="fw-bold text-dark mb-2"><i class="bi bi-clock-history text-primary me-2"></i>Resource Request Approval &amp; Handover History</h6>
+  <div class="small">
+    <div v-if="detail.requestedAt || detail.createdAt" class="mb-1 text-muted"><span class="badge bg-secondary me-1">Requested</span> {{ (detail.requestedAt || detail.createdAt).replace('T',' ').slice(0,19) }} by <strong>{{ detail.requestedBy || detail.employee }}</strong></div>
+    <div v-if="detail.hodApprovedAt" class="mb-1 text-info-emphasis"><span class="badge bg-info text-dark me-1">HOD Recommended</span> {{ detail.hodApprovedAt.replace('T',' ').slice(0,19) }} by <strong>{{ detail.hodApprover }}</strong> <span v-if="detail.hodRemark" class="text-muted">({{ detail.hodRemark }})</span></div>
+    <div v-if="detail.hrApprovedAt" class="mb-1 text-primary"><span class="badge bg-primary me-1">HR Approved</span> {{ detail.hrApprovedAt.replace('T',' ').slice(0,19) }} by <strong>{{ detail.hrApprover }}</strong> <span v-if="detail.hrRemark" class="text-muted">({{ detail.hrRemark }})</span></div>
+    <div v-if="detail.readyAt" class="mb-1 text-warning-emphasis"><span class="badge bg-warning text-dark me-1">Resource Ready</span> {{ detail.readyAt.replace('T',' ').slice(0,19) }} by <strong>{{ detail.readyBy }}</strong> <span v-if="detail.readyNotes" class="text-muted">({{ detail.readyNotes }})</span></div>
+    <div v-if="detail.receivedAt" class="mb-1 text-success"><span class="badge bg-success me-1">Staff Acknowledged</span> {{ detail.receivedAt.replace('T',' ').slice(0,19) }} by <strong>{{ detail.acknowledgedBy || detail.employee }}</strong> <span v-if="detail.acknowledgeNotes" class="text-muted">({{ detail.acknowledgeNotes }})</span></div>
+    <div v-if="detail.rejectedAt" class="mb-1 text-danger"><span class="badge bg-danger me-1">Rejected</span> {{ detail.rejectedAt.replace('T',' ').slice(0,19) }} by <strong>{{ detail.rejectedBy }}</strong> <span v-if="detail.rejectionReason" class="text-muted">(Reason: {{ detail.rejectionReason }})</span></div>
+  </div>
+</div>
+<template v-for="key in ['inductionPolicyVersion','inductionCompanyId','inductionGradeCode','selfRating','selfComments','managerRating','managerComments','finalRating','finalComments','decisionComments','paymentReference','outstanding','repayments','updatedBy','updatedAt']" :key="key"><dt v-if="detail[key]!=null">{{key.replace(/([A-Z])/g,' $1')}}</dt><dd v-if="detail[key]!=null">{{detail[key]}}</dd></template></dl></div><div class="hr-dialog-footer"><button v-if="editable(detail)" class="btn btn-primary" type="button" @click="edit(detail); detail=null"><i class="bi bi-pencil-square me-1"></i> Edit record</button><button class="btn btn-outline-secondary" type="button" @click="detail=null">Close</button></div></div>
  </div>
  </Teleport>
  <StatutorySettingsModal v-if="showStatutoryModal"

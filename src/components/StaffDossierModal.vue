@@ -1019,7 +1019,7 @@ function printLetterContent(ltr) {
           <div v-if="activeTab === 'leaves'" class="tab-pane-content">
             <!-- Balances Summary Cards -->
             <div class="row g-3 mb-4">
-              <div v-for="b in leaveBalances" :key="b.category" class="col-12 col-md-4">
+              <div v-for="b in leaveBalances" :key="b.category" class="col-12" :class="leaveBalances.length === 1 ? 'col-12' : leaveBalances.length === 2 ? 'col-md-6' : leaveBalances.length === 3 ? 'col-md-4' : 'col-md-3'">
                 <div class="card h-100 border-0 shadow-sm">
                   <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">

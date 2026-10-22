@@ -1110,6 +1110,19 @@ function handleLogin(payload) {
   return jsonResponse({ status: 'error', message: 'Invalid credentials.' });
 }
 
+function hrGetHrHodEmail_() {
+  try {
+    const profiles = typeof hrProfiles_ === 'function' ? hrProfiles_() : [];
+    const hrHod = profiles.find(p => {
+      const role = String(p.role || '').toUpperCase();
+      const dept = String(p.department || p.departmentId || '').toUpperCase();
+      return (role === 'HOD' || role === 'ADMIN') && (dept.includes('HR') || dept.includes('HUMAN'));
+    }) || profiles.find(p => String(p.role || '').toUpperCase() === 'HR' && p.email);
+    if (hrHod && hrHod.email) return hrHod.email;
+  } catch (_) {}
+  return (typeof HR_ADMIN_EMAIL_ !== 'undefined' && HR_ADMIN_EMAIL_) ? HR_ADMIN_EMAIL_ : "hock@metrio.com.my";
+}
+
 function submitLeave(payload) {
   const sheet = getSpreadsheet_().getSheetByName('Leave');
   let fileUrl = "";
@@ -1162,18 +1175,18 @@ function submitLeave(payload) {
   
   // --- SEND EMAIL NOTIFICATION (AUTO NOTIFY HOD / HR) ---
   try {
-    const adminEmail = "hock@metrio.com.my";
+    const adminEmail = hrGetHrHodEmail_();
     let managerEmail = "";
     if (hasManager) {
       const mgrProf = profiles.find(p => hrName_(p.employee) === hrName_(managerName));
       if (mgrProf && mgrProf.email) managerEmail = mgrProf.email;
     }
 
-    const subject = hasManager
+    const subject = managerEmail
       ? `[Action Required] New Leave Application: ${payload.staffName} (${leaveType}) - Awaiting HOD Endorsement`
       : `[Action Required] New Leave Application: ${payload.staffName} (${leaveType}) - Awaiting HR Approval`;
     
-    let body = hasManager
+    let body = managerEmail
       ? `Hello ${managerName || 'HOD'},\n\nA new leave application has been submitted by your team member and is awaiting your endorsement.\n\n`
       : `Hello Admin / HR,\n\nA new leave application has been submitted and is awaiting your approval.\n\n`;
     body += `--------------------------------------\n`;
@@ -1188,12 +1201,10 @@ function submitLeave(payload) {
     body += `--------------------------------------\n\n`;
     body += `Please log in to the Metrio HR Portal / Mobile App to review and process this request.`;
     
-    const recipients = [];
-    if (managerEmail) recipients.push(managerEmail);
-    if (!recipients.includes(adminEmail)) recipients.push(adminEmail);
+    const targetRecipient = managerEmail || adminEmail;
 
     MailApp.sendEmail({
-      to: recipients.join(','),
+      to: targetRecipient,
       subject: subject,
       body: body
     });
@@ -1306,7 +1317,7 @@ function updateLeaveStatus(payload) {
 
   // --- NOTIFICATION ROUTING (HOD -> HR -> STAFF) ---
   try {
-    const adminEmail = "hock@metrio.com.my";
+    const adminEmail = hrGetHrHodEmail_();
     const staffName = fullRow[1];
     const leaveType = fullRow[2];
     const startDate = fullRow[3];
@@ -2307,7 +2318,7 @@ const HR_MODULES = {
     ]
   },
   "bookings": {
-    "label": "Resource bookings",
+    "label": "Resource Requests",
     "icon": "calendar2-range",
     "group": "Applications",
     "self": true,
@@ -3562,6 +3573,16 @@ function hrSave_(payload,actor) {
       const resMatch=hrRows_('resources').find(r=>r.id===record.resourceId||r.code===record.resourceId);
       if(resMatch&&resMatch.category) record.category=resMatch.category;
       hrConflict_(record);
+      if(!old) {
+        record.requestedAt = new Date().toISOString();
+        record.requestedBy = actor.name;
+        record.historyLog = JSON.stringify([{
+          action: 'Requested',
+          actor: actor.name,
+          timestamp: record.requestedAt,
+          comments: record.notes || record.title || ''
+        }]);
+      }
     }
   }
   else if(module==='appraisals'){record.status='Pending self';hrAssert_(hrRows_('cycles').some(c=>c.id===record.cycleId&&c.status==='Active'),'Cycle must be active.');if(!record.manager&&profile)record.manager=profile.manager||'';hrAssert_(record.manager!==record.employee,'Reviewer cannot be the employee.');hrAssert_(!rows.some(r=>r.id!==record.id&&r.employee===record.employee&&r.cycleId===record.cycleId),'An appraisal already exists for this employee and cycle.');}
@@ -3602,23 +3623,22 @@ function hrSave_(payload,actor) {
   const writeRes = hrWrite_(module,record,actor,old,old?'Updated':'Created');
   if(!old && ['claims','loans','bookings'].indexOf(module)!==-1) {
     try {
-      const adminEmail = "hock@metrio.com.my";
+      const adminEmail = hrGetHrHodEmail_();
       let managerEmail = "";
       if (record.manager) {
         const mgrProf = hrProfiles_().find(p => hrName_(p.employee) === hrName_(record.manager));
         if (mgrProf && mgrProf.email) managerEmail = mgrProf.email;
       }
-      const recipients = [];
-      if (managerEmail) recipients.push(managerEmail);
-      if (!recipients.includes(adminEmail)) recipients.push(adminEmail);
+      const targetRecipient = managerEmail || adminEmail;
       const modLabel = module === 'claims' ? `Claim: RM ${Number(record.amount || 0).toFixed(2)} (${record.category || 'Expense'})`
         : module === 'loans' ? `Loan: RM ${Number(record.amount || 0).toFixed(2)}`
         : `Resource: ${record.title || record.resourceId}`;
       const awaitingWho = record.manager ? 'Awaiting HOD Endorsement' : 'Awaiting HR Approval';
       MailApp.sendEmail({
-        to: recipients.join(','),
+        to: targetRecipient,
         subject: `[Action Required] New ${module === 'bookings' ? 'RESOURCE' : module.slice(0, -1).toUpperCase()} Request: ${record.employee} - ${awaitingWho}`,
-        body: `Hello ${record.manager || 'HR / Admin'},\n\nA new ${module === 'bookings' ? 'resource' : module.slice(0, -1)} request has been submitted by ${record.employee}.\n\nDetails: ${modLabel}\nStatus: ${record.status}\n\nPlease log in to the Metrio HR Portal / Mobile App to review and process this request.`
+        replyTo: targetRecipient,
+        body: `Hello ${managerEmail ? (record.manager || 'HOD') : 'HR / Admin'},\n\nA new ${module === 'bookings' ? 'resource' : module.slice(0, -1)} request has been submitted by ${record.employee}.\n\nDetails: ${modLabel}\nStatus: ${record.status}\n\nPlease log in to the Metrio HR Portal / Mobile App to review and process this request.`
       });
     } catch (e) {
       console.log("New Request Notification Failed: " + e);
@@ -3642,7 +3662,7 @@ function hrTransition_(payload,actor) {
       r.status=action==='reject'?'Rejected':r.status==='Pending manager'?'Pending admin':'Approved';
       // Multi-tier claim notification routing
       try {
-        const adminEmail = "hock@metrio.com.my";
+        const adminEmail = hrGetHrHodEmail_();
         const empProf = hrProfiles_().find(p => p.employee === hrName_(r.employee));
         const empEmail = empProf ? empProf.email : '';
         if (prevStatus === 'Pending manager' && r.status === 'Pending admin') {
@@ -3684,7 +3704,7 @@ function hrTransition_(payload,actor) {
       const prevStatus = r.status;
       r.status=action==='reject'?'Rejected':r.status==='Pending manager'?'Pending admin':'Approved';
       try {
-        const adminEmail = "hock@metrio.com.my";
+        const adminEmail = hrGetHrHodEmail_();
         const empProf = hrProfiles_().find(p => p.employee === hrName_(r.employee));
         const empEmail = empProf ? empProf.email : '';
         if (prevStatus === 'Pending manager' && r.status === 'Pending admin') {
@@ -3721,43 +3741,122 @@ function hrTransition_(payload,actor) {
     else throw new Error('Invalid loan action.');
   }
   else if(module==='resourceAssignments'&&action==='returnResource'){hrAssert_(admin&&r.status==='Assigned','Only HR can return an assigned resource.');r.status='Returned';r.returnedAt=new Date().toISOString();r.returnNotes=String(payload.comments||'').slice(0,12000);}
-  else if(module==='bookings'&&['approve','reject'].indexOf(action)!==-1){
-    hrAssert_((r.status==='Pending manager'&&(manager||admin))||(r.status==='Pending admin'&&admin),'Booking is not awaiting your approval.');
-    if(action==='approve'&&r.status==='Pending admin')hrConflict_(r);
-    const prevStatus = r.status;
-    r.status=action==='reject'?'Rejected':r.status==='Pending manager'?'Pending admin':'Approved';
-    try {
-      const adminEmail = "hock@metrio.com.my";
-      const empProf = hrProfiles_().find(p => p.employee === hrName_(r.employee));
-      const empEmail = empProf ? empProf.email : '';
-      if (prevStatus === 'Pending manager' && r.status === 'Pending admin') {
+  else if(module==='bookings'){
+    if(!Array.isArray(r.historyLog)){
+      try { r.historyLog = r.historyLog ? JSON.parse(r.historyLog) : []; } catch(_) { r.historyLog = []; }
+    }
+    if(action==='approve'||action==='reject'){
+      hrAssert_((r.status==='Pending manager'&&(manager||admin))||(r.status==='Pending admin'&&admin),'Resource request is not awaiting your approval.');
+      if(action==='approve'&&r.status==='Pending admin')hrConflict_(r);
+      const prevStatus = r.status;
+      if (action === 'reject') {
+        r.status = 'Rejected';
+        r.rejectedAt = new Date().toISOString();
+        r.rejectedBy = actor.name;
+        r.rejectionReason = String(payload.comments || '-');
+        r.historyLog.push({ action: 'Rejected', actor: actor.name, timestamp: r.rejectedAt, comments: payload.comments || '' });
+      } else if (r.status === 'Pending manager') {
+        r.status = 'Pending admin';
+        r.hodApprovedAt = new Date().toISOString();
+        r.hodApprover = actor.name;
+        r.hodRemark = String(payload.comments || 'Recommended by HOD');
+        r.historyLog.push({ action: 'HOD Recommended', actor: actor.name, timestamp: r.hodApprovedAt, comments: payload.comments || '' });
+      } else {
+        r.status = 'Approved';
+        r.hrApprovedAt = new Date().toISOString();
+        r.hrApprover = actor.name;
+        r.hrRemark = String(payload.comments || 'Approved by HR');
+        r.historyLog.push({ action: 'HR Approved', actor: actor.name, timestamp: r.hrApprovedAt, comments: payload.comments || '' });
+      }
+      try {
+        const adminEmail = hrGetHrHodEmail_();
+        const empProf = hrProfiles_().find(p => p.employee === hrName_(r.employee));
+        const empEmail = empProf ? empProf.email : '';
+        if (prevStatus === 'Pending manager' && r.status === 'Pending admin') {
+          MailApp.sendEmail({
+            to: adminEmail,
+            subject: `[Action Required] Resource Request Endorsed by HOD: ${r.employee} (${r.title || 'Resource'}) - Awaiting HR Approval`,
+            body: `Hello HR,\n\n${actor.name} (HOD) has recommended / endorsed the resource request for ${r.employee}.\n\nResource: ${r.title || r.resourceId}\nRemark: ${payload.comments || '-'}\n\nPlease log in to the Metrio HR Portal / Mobile App to process final approval.`
+          });
+        } else if (r.status === 'Approved') {
+          const targetEmail = empEmail || adminEmail;
+          if (targetEmail) {
+            MailApp.sendEmail({
+              to: targetEmail,
+              subject: `Resource Request Approved: ${r.employee} (${r.title || 'Resource'})`,
+              body: `Hello ${r.employee},\n\nYour resource request (${r.title || r.resourceId}) has been approved by HR. HR will prepare the item and notify you once it is ready for collection.`
+            });
+          }
+        } else if (r.status === 'Rejected') {
+          const targetEmail = empEmail || adminEmail;
+          if (targetEmail) {
+            MailApp.sendEmail({
+              to: targetEmail,
+              subject: `Resource Request Rejected: ${r.employee} (${r.title || 'Resource'})`,
+              body: `Hello ${r.employee},\n\nYour resource request (${r.title || r.resourceId}) was rejected by ${actor.name}.\nReason: ${payload.comments || '-'}`
+            });
+          }
+        }
+      } catch (e) {
+        console.log("Resource Request Notification Failed: " + e);
+      }
+    }
+    else if(action==='ready'){
+      hrAssert_(admin&&r.status==='Approved','Only approved resource requests can be marked ready.');
+      r.status = 'Ready';
+      r.readyAt = new Date().toISOString();
+      r.readyBy = actor.name;
+      r.readyNotes = String(payload.comments || '');
+      r.historyLog.push({ action: 'Resource Ready for Handover', actor: actor.name, timestamp: r.readyAt, comments: payload.comments || '' });
+      try {
+        const empProf = hrProfiles_().find(p => p.employee === hrName_(r.employee));
+        const empEmail = empProf ? empProf.email : '';
+        if (empEmail) {
+          MailApp.sendEmail({
+            to: empEmail,
+            subject: `[Action Required: Collection] Your Requested Resource is Ready: ${r.title || r.resourceId}`,
+            body: `Hello ${r.employee},\n\nYour requested resource (${r.title || r.resourceId}) is now ready for handover / collection.\nInstructions / Location: ${payload.comments || 'Please proceed to HR for collection.'}\n\nPlease collect your resource and log in to the HR Portal to click 'Acknowledge & Receive' to confirm handover.`
+          });
+        }
+      } catch (e) {
+        console.log("Ready Notification Failed: " + e);
+      }
+    }
+    else if(action==='acknowledge'){
+      hrAssert_((self||admin)&&(r.status==='Ready'||r.status==='Approved'),'Resource must be ready or approved before acknowledgment.');
+      r.status = 'Received';
+      r.receivedAt = new Date().toISOString();
+      r.acknowledgedBy = actor.name;
+      r.acknowledgeNotes = String(payload.comments || '');
+      r.historyLog.push({ action: 'Staff Acknowledged & Received', actor: actor.name, timestamp: r.receivedAt, comments: payload.comments || '' });
+      // Automatically register the resource under staff profile "My Resources"
+      try {
+        const assignId = Utilities.getUuid();
+        const assignRecord = {
+          id: assignId,
+          employee: r.employee,
+          resourceId: r.resourceId,
+          date: r.receivedAt.slice(0, 10),
+          status: 'Assigned',
+          notes: 'Assigned via Resource Request #' + r.id + (payload.comments ? ' (' + payload.comments + ')' : '')
+        };
+        hrWrite_('resourceAssignments', assignRecord, actor, null, 'Created');
+        hrSyncAssignedResources_(r.employee);
+      } catch (assignErr) {
+        console.log('Auto-assign resource on acknowledge error: ' + assignErr);
+      }
+      try {
+        const adminEmail = hrGetHrHodEmail_();
         MailApp.sendEmail({
           to: adminEmail,
-          subject: `[Action Required] Resource Endorsed by HOD: ${r.employee} (${r.title || 'Resource'}) - Awaiting HR Action`,
-          body: `Hello HR,\n\n${actor.name} has endorsed the resource request for ${r.employee}.\n\nResource: ${r.title || r.resourceId}\nDate: ${r.start || r.date || '-'}\n\nPlease log in to the Metrio HR Portal / Mobile App to process final approval.`
+          subject: `Resource Handover Completed: ${r.employee} (${r.title || r.resourceId})`,
+          body: `Hello HR,\n\n${actor.name} has acknowledged receipt of resource: ${r.title || r.resourceId} on ${r.receivedAt.slice(0, 10)}.\n\nIt has been automatically registered under their staff profile My Resources.`
         });
-      } else if (r.status === 'Approved') {
-        const targetEmail = empEmail || adminEmail;
-        if (targetEmail) {
-          MailApp.sendEmail({
-            to: targetEmail,
-            subject: `Resource Request Approved: ${r.employee} (${r.title || 'Resource'})`,
-            body: `Hello ${r.employee},\n\nYour resource request (${r.title || r.resourceId}) for ${r.start || r.date || '-'} has been approved by HR.`
-          });
-        }
-      } else if (r.status === 'Rejected') {
-        const targetEmail = empEmail || adminEmail;
-        if (targetEmail) {
-          MailApp.sendEmail({
-            to: targetEmail,
-            subject: `Resource Request Rejected: ${r.employee} (${r.title || 'Resource'})`,
-            body: `Hello ${r.employee},\n\nYour resource request (${r.title || r.resourceId}) was rejected by ${actor.name}.\nReason: ${payload.comments || '-'}`
-          });
-        }
+      } catch (e) {
+        console.log("Handover Completed Notification Failed: " + e);
       }
-    } catch (e) {
-      console.log("Booking Notification Failed: " + e);
     }
+    else throw new Error('Invalid resource request action.');
   }
   else if(module==='tax'&&action==='review'){hrAssert_(admin&&r.status==='Submitted','Declaration cannot be reviewed.');r.status='Reviewed';}
   else if(module==='cycles'&&action==='closeCycle'){hrAssert_(admin&&r.status==='Active','Cycle cannot be closed.');hrAssert_(!hrRows_('appraisals').some(a=>a.cycleId===r.id&&a.status!=='Completed'),'Complete all appraisals before closing the cycle.');r.status='Closed';}
@@ -4223,8 +4322,21 @@ function hrSyncAssignedResources_(employee) {
   const sheet=getSpreadsheet_().getSheetByName('Staff'),rows=hrStaffRows_();
   const index=rows.findIndex((r,i)=>i>0&&hrName_(r[0])===hrName_(employee));if(index<1)return;
   const resources=hrRows_('resources');
-  const summary=hrRows_('resourceAssignments').filter(r=>r.employee===hrName_(employee)&&r.status==='Assigned').map(a=>{const r=resources.find(r=>r.id===a.resourceId);return r?(r.code+' — '+r.title):a.resourceId;}).join(' | ');
-  sheet.getRange(index+1,32).setValue(summary);
+  const assignments=hrRows_('resourceAssignments').filter(r=>r.employee===hrName_(employee)&&r.status==='Assigned');
+  const structuredList = assignments.map(a => {
+    const r = resources.find(res => res.id === a.resourceId);
+    return {
+      type: r ? (r.category || 'Equipment') : 'Equipment',
+      model: r ? (r.title || r.name) : (a.notes || a.resourceId),
+      name: r ? r.title : a.resourceId,
+      serialNo: r ? (r.code || '-') : '-',
+      issueDate: a.date || (a.createdAt ? a.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+      returned: false,
+      remarks: a.notes || 'Assigned'
+    };
+  });
+  const val = structuredList.length ? JSON.stringify(structuredList) : '';
+  sheet.getRange(index+1,32).setValue(val);
 }
 function hrSeedClaimTypes_() {
   const existing=hrRows_('claimTypes');

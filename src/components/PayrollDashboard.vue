@@ -903,10 +903,6 @@ onBeforeUnmount(() => {
                                 <input type="text" class="form-control" id="myProfileAcademicLevel" readonly>
                             </div>
                             <div class="col-sm-6 col-md-3 profile-field-group">
-                                <label for="myProfileUsername">Username</label>
-                                <input type="text" class="form-control" id="myProfileUsername" readonly>
-                            </div>
-                            <div class="col-sm-6 col-md-3 profile-field-group">
                                 <label for="myProfileRole">System Role</label>
                                 <input type="text" class="form-control fw-semibold" id="myProfileRole" readonly>
                             </div>
@@ -934,6 +930,11 @@ onBeforeUnmount(() => {
                             <div class="col-12 profile-field-group">
                                 <label for="myProfileAddress"><i class="bi bi-geo-alt text-success"></i> Residential Address</label>
                                 <textarea class="form-control border-primary" id="myProfileAddress" rows="2" placeholder="Full residential address"></textarea>
+                            </div>
+                            <div class="col-md-6 profile-field-group">
+                                <label for="myProfileUsername"><i class="bi bi-person text-secondary"></i> Username</label>
+                                <input type="text" class="form-control" id="myProfileUsername" readonly>
+                                <div class="form-text small text-muted">System login account name.</div>
                             </div>
                             <div class="col-md-6 profile-field-group">
                                 <label for="myProfilePassword"><i class="bi bi-lock text-warning"></i> Password</label>

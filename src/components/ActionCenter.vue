@@ -18,7 +18,7 @@ const todayStr = () => new Intl.DateTimeFormat('en-CA', { timeZone: MYT }).forma
 const dayDiff = (a, b) => Math.round((new Date(a + 'T00:00:00Z') - new Date(b + 'T00:00:00Z')) / 86400000);
 const isPending = (s) => /^(submitted|pending)/i.test(String(s || ''));
 const dateOf = (r) => String(r.submittedAt || r.createdAt || r.date || '').slice(0, 10);
-const LABELS = { claims: 'Claim', loans: 'Loan', bookings: 'Booking', appraisals: 'Appraisal', tax: 'Tax declaration' };
+const LABELS = { claims: 'Claim', loans: 'Loan', bookings: 'Resource Request', appraisals: 'Appraisal', tax: 'Tax declaration' };
 
 const items = computed(() => {
   const out = [];
