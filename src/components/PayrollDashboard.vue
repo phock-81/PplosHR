@@ -550,6 +550,13 @@ onBeforeUnmount(() => {
                             <p class="text-muted small mb-0">Configure holidays by Company, Work Base (Office / Site) and Location (PG, SEL, KL, NS) matching official gazetted dates.</p>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-success btn-sm fw-semibold" id="btnDownloadHolidayTemplate" onclick="downloadHolidayTemplate()">
+                                <i class="bi bi-file-earmark-excel me-1"></i>Template
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" id="btnUploadHolidays" onclick="$('#holidayExcelInput').click()">
+                                <i class="bi bi-cloud-arrow-up me-1"></i>Upload
+                            </button>
+                            <input type="file" id="holidayExcelInput" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleHolidayFileUpload(event)" />
                             <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btnLoad2026HolidayPreset" onclick="loadDefault2026HolidayMatrix()">
                                 <i class="bi bi-magic me-1"></i>Preload 2026 Schedule
                             </button>
@@ -1466,6 +1473,11 @@ onBeforeUnmount(() => {
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-2 fw-bold" id="staff-tab-resources-btn" data-bs-toggle="pill" data-bs-target="#staff-tab-resources" type="button" role="tab">
+                            <i class="bi bi-laptop me-1"></i>Resources
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link py-1 px-2 fw-bold" id="staff-tab-docs-btn" data-bs-toggle="pill" data-bs-target="#staff-tab-docs" type="button" role="tab">
                             <i class="bi bi-folder2-open me-1"></i>Documents
                         </button>
@@ -1504,7 +1516,13 @@ onBeforeUnmount(() => {
                             </div>
                             <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffRace">Race</label>
-                                <input id="staffRace" class="form-control" type="text">
+                                <select id="staffRace" class="form-select">
+                                    <option value="">-- Select Race --</option>
+                                    <option value="CHINESE">CHINESE</option>
+                                    <option value="MALAY">MALAY</option>
+                                    <option value="INDIAN">INDIAN</option>
+                                    <option value="OTHERS">OTHERS</option>
+                                </select>
                             </div>
                             <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffAgeSource">Age (source snapshot)</label>
@@ -1620,15 +1638,19 @@ onBeforeUnmount(() => {
                     <!-- Tab 3: Salary & Statutory -->
                     <div class="tab-pane fade" id="staff-tab-salary" role="tabpanel">
                         <div class="row g-2">
-                            <div class="col-md-4 col-sm-4">
+                            <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffBasic">Basic Salary (RM)</label>
                                 <input type="number" class="form-control fw-bold text-success" id="staffBasic" step="0.01">
                             </div>
-                            <div class="col-md-4 col-sm-4">
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-bold small text-muted" for="staffFixedAllowance">Fixed Allowance (RM)</label>
+                                <input type="number" class="form-control fw-bold text-primary bg-light" id="staffFixedAllowance" step="0.01" readonly placeholder="0.00" title="Auto-summed from fixed allowance breakdown below">
+                            </div>
+                            <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffJoined">Joined Date</label>
                                 <input type="date" class="form-control" id="staffJoined">
                             </div>
-                            <div class="col-md-4 col-sm-4">
+                            <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffConfirm">Confirmation Date</label>
                                 <input type="date" class="form-control" id="staffConfirm">
                             </div>
@@ -1647,6 +1669,65 @@ onBeforeUnmount(() => {
                             <div class="col-md-3 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffBankNo">Bank Acc No.</label>
                                 <input type="text" class="form-control" id="staffBankNo">
+                            </div>
+
+                            <div class="col-12 mt-2">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between p-2 border rounded bg-light gap-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" id="staffOtEligible" style="cursor: pointer; width: 2.2em; height: 1.2em;">
+                                        </div>
+                                        <div>
+                                            <label class="form-check-label fw-bold small text-dark mb-0" for="staffOtEligible" style="cursor: pointer;">
+                                                Overtime (OT) Eligible <span class="badge bg-white text-secondary border ms-1 small">EA 1955 Special Condition</span>
+                                            </label>
+                                            <div class="text-muted small" style="font-size: 0.76rem;">
+                                                Staff earning &le; RM4,000/mo or site workers are automatically eligible. For executives or managers earning &gt; RM4,000, enable this switch to grant contractual OT entitlement.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="badge bg-secondary-subtle text-secondary border small" id="staffOtStatusBadge">Auto (by salary)</span>
+                                </div>
+                            </div>
+
+                            <!-- Fixed Allowance Breakdown Section -->
+                            <div class="col-12 mt-3">
+                                <div class="card border shadow-sm">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                        <div>
+                                            <span class="fw-bold small text-dark"><i class="bi bi-wallet2 me-1 text-primary"></i>Fixed Allowance Breakdown</span>
+                                            <span class="badge bg-light text-secondary border ms-2 small">Malaysia Statutory Compliant</span>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 fw-semibold" id="btnAddStaffAllowance" onclick="addStaffAllowanceRow()">
+                                            <i class="bi bi-plus-circle me-1"></i>Add Allowance
+                                        </button>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <p class="text-muted small mb-2">Select allowance category from droplist (Transportation, Communication, Business Travel, Other) and enter amount. System auto-sums total fixed allowance and captures statutory obligations (EPF, SOCSO, EIS, PCB) according to Malaysian law.</p>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered align-middle mb-0" id="staffAllowanceTable">
+                                                <thead class="table-light small">
+                                                    <tr>
+                                                        <th style="width: 32%;">Allowance Category</th>
+                                                        <th style="width: 23%;">Amount (RM)</th>
+                                                        <th style="width: 35%;">Remarks / Reference</th>
+                                                        <th style="width: 10%; text-align: center;">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="staffAllowanceTableBody">
+                                                    <!-- Dynamic allowance rows -->
+                                                </tbody>
+                                                <tfoot class="table-light fw-bold">
+                                                    <tr>
+                                                        <td class="text-end">Total Fixed Allowance:</td>
+                                                        <td class="text-primary font-monospace" id="staffAllowanceTotalDisplay">RM 0.00</td>
+                                                        <td colspan="2" class="text-muted small fst-italic">Auto-summed &amp; captured for monthly payroll &amp; statutory computation</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1679,6 +1760,47 @@ onBeforeUnmount(() => {
                                     Working &amp; rest days are configured automatically via assigned <strong>Schedule Template</strong>.
                                 </div>
                                 <div id="staffRestDaysGroup" style="display:none;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 5: Resources -->
+                    <div class="tab-pane fade" id="staff-tab-resources" role="tabpanel">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center mb-1 gap-2">
+                                    <div>
+                                        <h6 class="fw-bold text-dark mb-0 small"><i class="bi bi-laptop me-1 text-primary"></i>Company Resources &amp; Asset Custody</h6>
+                                        <p class="text-muted small mb-0">Record company assets assigned to staff (laptop, access card, phone, vehicle, keys, etc.). When resignation is triggered, all resources must be marked Returned with Returned Date and Remarks before profile can be saved.</p>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2 fw-semibold" id="btnAddStaffResource" onclick="addStaffResourceRow()">
+                                        <i class="bi bi-plus-circle me-1"></i>Assign Resource
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="table-responsive border rounded bg-white">
+                                    <table class="table table-sm table-bordered align-middle mb-0" id="staffResourcesTable">
+                                        <thead class="table-light small">
+                                            <tr>
+                                                <th style="width: 22%;">Resource Name / Item</th>
+                                                <th style="width: 18%;">Serial No. / Tag</th>
+                                                <th style="width: 15%;">Date Issued</th>
+                                                <th class="text-center" style="width: 10%;">Returned?</th>
+                                                <th style="width: 15%;">Returned Date</th>
+                                                <th style="width: 20%;">Return Remarks / Handover</th>
+                                                <th class="text-center" style="width: 5%;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="staffResourcesTableBody">
+                                            <!-- Dynamic resource rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="alert alert-warning border small text-dark p-2 mt-2 mb-0 rounded" id="staffResourceResignNotice">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                                    <strong>Resignation Custody Gate:</strong> When Employment Status is set to <em>Resigned</em>, HR must tick <strong>Returned</strong>, select <strong>Returned Date</strong>, and fill in <strong>Return Remarks</strong> for every assigned resource before saving.
+                                </div>
                             </div>
                         </div>
                     </div>

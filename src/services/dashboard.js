@@ -1,5 +1,5 @@
 import {navigationFor,normaliseRole,allNavigationItems} from '../hr/navigation';
-import { calculateEpf, calculateSocso, calculateEis, calculatePcb, DEFAULT_STATUTORY_CONFIG } from './statutory';
+import { calculateEpf, calculateSocso, calculateEis, calculatePcb, DEFAULT_STATUTORY_CONFIG, DEFAULT_ALLOWANCE_TYPES, calculateStatutoryWages } from './statutory';
 import $ from 'jquery';
 import * as bootstrap from 'bootstrap';
 import Chart from 'chart.js/auto';
@@ -111,18 +111,24 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         { date: '2026-01-17', name: 'Israk dan Mikraj', company: 'All', workBase: 'SITE', location: 'NS', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 1 } },
         { date: '2026-02-01', name: 'Thaipusam (Replacement on 02-Feb-26 Monday)', company: 'All', workBase: 'SITE', location: 'All', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-02-01', name: 'Federal Territory Day (Replacement on 03-Feb-26 Tuesday)', company: 'All', workBase: 'SITE', location: 'KL', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 1, SITE_NS: 0 } },
+        { date: '2026-02-16', name: 'Replacement Thaipusam (Office staff only)', company: 'All', workBase: 'OFFICE', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
         { date: '2026-02-17', name: 'Chinese New Year (1st Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-02-18', name: 'Chinese New Year (2nd Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-03-07', name: 'Nuzul Al-Quran', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 0 } },
         { date: '2026-03-21', name: 'Hari Raya Puasa (1st Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
-        { date: '2026-03-22', name: 'Hari Raya Puasa (2nd Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
-        { date: '2026-05-01', name: 'Labor Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-03-22', name: 'Hari Raya Puasa (2nd Day) (Replacement on 23-Mar-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-05-01', name: 'Labour Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-05-27', name: 'Hari Raya Haji', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
-        { date: '2026-06-01', name: "Agong's Birthday", company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-05-31', name: 'Wesak Day (Replacement on 1-Jun-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-06-01', name: "Agong's Birthday (Replacement on 2-Jun-26 Tuesday)", company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-06-17', name: 'Awal Muharam', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-07-07', name: 'George Town World Heritage Day', company: 'All', workBase: 'All', location: 'PG', matrix: { OFFICE_PG: 1, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
         { date: '2026-07-11', name: "Penang Governor's Birthday", company: 'All', workBase: 'All', location: 'PG', matrix: { OFFICE_PG: 1, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
+        { date: '2026-08-25', name: "Prophet Muhammad's Birthday", company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-08-31', name: 'National Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
         { date: '2026-09-16', name: 'Malaysia Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-11-08', name: 'Deepavali (Replacement on 09-Nov-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+        { date: '2026-12-11', name: "Sultan of Selangor's Birthday", company: 'All', workBase: 'All', location: 'SEL', matrix: { OFFICE_PG: 0, OFFICE_SEL: 1, SITE_PG: 0, SITE_SEL: 1, SITE_KL: 0, SITE_NS: 0 } },
         { date: '2026-12-25', name: 'Christmas', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } }
     ];
     holidays = JSON.parse(JSON.stringify(DEFAULT_2026_HOLIDAYS));
@@ -144,30 +150,96 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const staffLoc=['PG','SEL','KL','NS'].includes(locationRaw)?locationRaw:'';
         const validKeys=['OFFICE_PG','OFFICE_SEL','SITE_PG','SITE_SEL','SITE_KL','SITE_NS'];
         const target=normalizeDateStr(dateStr);
-        for (const h of holidays) {
-            if(!h || normalizeDateStr(h.date)!==target) continue;
+
+        function isHolidayApplicable(h) {
+            if (!h || !h.date) return false;
             const company=String(h.company||'All').trim().toUpperCase();
-            if(company!=='ALL' && !companyValues.includes(company)) continue;
+            if(company!=='ALL' && companyValues.length && !companyValues.includes(company)) return false;
             const hBase=String(h.workBase||'All').trim().toUpperCase();
             const hLocation=String(h.location||'All').trim().toUpperCase();
-            if(hBase!=='ALL' && hBase!==staffBase) continue;
-            if(hLocation!=='ALL' && hLocation!==staffLoc) continue;
+            if(hBase!=='ALL' && staffBase && hBase!==staffBase) return false;
+            if(hLocation!=='ALL' && staffLoc && hLocation!==staffLoc) return false;
             const hasMatrix=h.matrix && typeof h.matrix==='object' && Object.keys(h.matrix).length>0;
             if(hasMatrix){
                 if(staffBase && staffLoc){
                     const key=staffBase+'_'+staffLoc;
-                    if(!validKeys.includes(key) || !(h.matrix[key]===1 || h.matrix[key]===true))continue;
+                    if(!validKeys.includes(key) || !(h.matrix[key]===1 || h.matrix[key]===true)) return false;
                 } else {
-                    // An unconfigured employee is never automatically assigned a restricted holiday.
-                    if(company!=='ALL'||hBase!=='ALL'||hLocation!=='ALL')continue;
-                    if(!validKeys.every(k=>h.matrix[k]===1||h.matrix[k]===true))continue;
+                    if(company!=='ALL'||hBase!=='ALL'||hLocation!=='ALL') return false;
+                    if(!validKeys.every(k=>h.matrix[k]===1||h.matrix[k]===true)) return false;
                 }
             } else if (!staffBase || !staffLoc) {
-                // Legacy rows without a matrix can only be universal when staff settings are missing.
-                if(company!=='ALL'||hBase!=='ALL'||hLocation!=='ALL')continue;
+                if(company!=='ALL'||hBase!=='ALL'||hLocation!=='ALL') return false;
             }
-            return h;
+            return true;
         }
+
+        // Direct calendar match
+        for (const h of holidays) {
+            if (normalizeDateStr(h.date) === target && isHolidayApplicable(h)) {
+                return h;
+            }
+        }
+
+        // Subsequent replacement day match if holiday fell on Sunday or collided with an earlier holiday
+        const applicable = holidays.filter(isHolidayApplicable);
+        const sorted = applicable.slice().sort((a, b) => (normalizeDateStr(a.date) || '').localeCompare(normalizeDateStr(b.date) || ''));
+        const originalDates = new Set();
+        const replacementMap = new Map();
+
+        // Check if Sunday is a working day for this staff member:
+        // Rule: if sunday is the working day then no replacement if sunday is holiday
+        const effectiveRestDays = (typeof getStaffEffectiveRestDays === 'function') 
+            ? getStaffEffectiveRestDays(s) 
+            : (Array.isArray(s.restDays) ? s.restDays : null);
+
+        let isSundayWorkingDay = false;
+        if (s.isSundayWorkingDay !== undefined) {
+            isSundayWorkingDay = Boolean(s.isSundayWorkingDay);
+        } else if (s.workOnSunday !== undefined) {
+            isSundayWorkingDay = Boolean(s.workOnSunday);
+        } else if (Array.isArray(s.workingDays) && s.workingDays.length > 0) {
+            isSundayWorkingDay = s.workingDays.includes('Sun') || s.workingDays.includes(0);
+        } else if (Array.isArray(effectiveRestDays) && effectiveRestDays.length > 0) {
+            isSundayWorkingDay = !effectiveRestDays.includes(0);
+        }
+
+        for (const h of sorted) {
+            const hDate = normalizeDateStr(h.date);
+            if (!hDate) continue;
+            const d = new Date(hDate + 'T00:00:00Z');
+            const isSunday = d.getUTCDay() === 0;
+            const isCollision = originalDates.has(hDate) || replacementMap.has(hDate);
+
+            // If Sunday is a working day, NO replacement if holiday falls on Sunday!
+            const needsSundayReplacement = isSunday && !isSundayWorkingDay;
+
+            if (needsSundayReplacement || isCollision) {
+                let cur = new Date(d);
+                while (true) {
+                    cur.setUTCDate(cur.getUTCDate() + 1);
+                    const iso = cur.toISOString().slice(0, 10);
+                    const dayOfWeek = cur.getUTCDay();
+                    const isStaffRest = isSundayWorkingDay ? ((effectiveRestDays || []).includes(dayOfWeek)) : (dayOfWeek === 0 || (effectiveRestDays || []).includes(dayOfWeek));
+                    if (!isStaffRest && !originalDates.has(iso) && !replacementMap.has(iso)) {
+                        replacementMap.set(iso, Object.assign({}, h, {
+                            date: iso,
+                            originalDate: hDate,
+                            isReplacement: true,
+                            name: String(h.name || '').includes('Replacement') ? h.name : (h.name + ' (Replacement)')
+                        }));
+                        break;
+                    }
+                }
+            } else {
+                originalDates.add(hDate);
+            }
+        }
+
+        if (replacementMap.has(target)) {
+            return replacementMap.get(target);
+        }
+
         return null;
     }
     if (typeof window !== 'undefined') window.getPublicHolidayForStaff = getPublicHolidayForStaff;
@@ -511,7 +583,12 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             let depts = cachedDepartments;
             if (selectedCompany !== 'ALL') {
                 const compObj = cachedCompanies.find(c => (c.title || c.name || c.code) === selectedCompany || c.id === selectedCompany);
-                if (compObj) depts = depts.filter(d => d.companyId === compObj.id);
+                const targetCId = compObj?.id || selectedCompany;
+                depts = depts.filter(d => {
+                    if (!d.companyId || String(d.companyId).toUpperCase() === 'ALL') return true;
+                    const cos = String(d.companyId).split(',').map(s => s.trim().toUpperCase());
+                    return cos.includes(String(targetCId).toUpperCase()) || (compObj && (cos.includes(String(compObj.code || '').toUpperCase()) || cos.includes(String(compObj.title || '').toUpperCase())));
+                });
             }
             depts.forEach(d => {
                 const name = d.title || d.name || d.code;
@@ -633,7 +710,17 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const uniqueDepts = new Set();
         if (cachedDepartments && cachedDepartments.length) {
             cachedDepartments.forEach(d => {
-                if (selectedCompany === 'ALL' || !d.companyId || d.companyId === selectedCompany || d.company === selectedCompany) {
+                let matchesComp = (selectedCompany === 'ALL');
+                if (!matchesComp) {
+                    if (!d.companyId || String(d.companyId).toUpperCase() === 'ALL') matchesComp = true;
+                    else {
+                        const compObj = (cachedCompanies || []).find(c => (c.title || c.name || c.code) === selectedCompany || c.id === selectedCompany);
+                        const targetCId = compObj?.id || selectedCompany;
+                        const cos = String(d.companyId).split(',').map(s => s.trim().toUpperCase());
+                        matchesComp = cos.includes(String(targetCId).toUpperCase()) || (compObj && (cos.includes(String(compObj.code || '').toUpperCase()) || cos.includes(String(compObj.title || '').toUpperCase())));
+                    }
+                }
+                if (matchesComp) {
                     const name = d.title || d.name || d.code;
                     if (name) uniqueDepts.add(name);
                 }
@@ -698,7 +785,12 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             let depts = cachedDepartments;
             if (selectedComp !== 'all') {
                 const compObj = cachedCompanies.find(c => (c.title || c.name || c.code) === selectedComp || c.id === selectedComp);
-                if (compObj) depts = depts.filter(d => d.companyId === compObj.id);
+                const targetCId = compObj?.id || selectedComp;
+                depts = depts.filter(d => {
+                    if (!d.companyId || String(d.companyId).toUpperCase() === 'ALL') return true;
+                    const cos = String(d.companyId).split(',').map(s => s.trim().toUpperCase());
+                    return cos.includes(String(targetCId).toUpperCase()) || (compObj && (cos.includes(String(compObj.code || '').toUpperCase()) || cos.includes(String(compObj.title || '').toUpperCase())));
+                });
             }
             depts.forEach(d => {
                 const name = d.title || d.name || d.code;
@@ -1010,13 +1102,36 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         return ceil - 50; 
     }
     
-    function calcStatutory(grossPay, age = 30, tp1Relief = 0, config = DEFAULT_STATUTORY_CONFIG) {
-        if (grossPay <= 0 || isNaN(grossPay)) return { epfEmp: 0, epfEmpr: 0, socsoEmp: 0, socsoEmpr: 0, eisEmp: 0, eisEmpr: 0, pcb: 0 };
+    function calcStatutory(grossPayOrWages, age = 30, tp1Relief = 0, config = DEFAULT_STATUTORY_CONFIG) {
+        let epfWage = 0, socsoWage = 0, eisWage = 0, pcbWage = 0;
+        if (typeof grossPayOrWages === 'object' && grossPayOrWages !== null) {
+            const types = config?.allowanceTypes || getAvailableAllowanceTypes();
+            const w = calculateStatutoryWages(
+                grossPayOrWages.basic !== undefined ? grossPayOrWages.basic : (grossPayOrWages.grossPay || 0),
+                grossPayOrWages.fixedAllowances || [],
+                types
+            );
+            const extraOT = Math.max(0, (parseFloat(grossPayOrWages.grossPay) || 0) - w.grossWage);
+            epfWage = w.epfWages;
+            socsoWage = w.socsoWages;
+            eisWage = w.eisWages;
+            pcbWage = w.pcbWages + extraOT;
+        } else {
+            const g = parseFloat(grossPayOrWages) || 0;
+            epfWage = g;
+            socsoWage = g;
+            eisWage = g;
+            pcbWage = g;
+        }
+
+        if (epfWage <= 0 && socsoWage <= 0 && eisWage <= 0 && pcbWage <= 0) {
+            return { epfEmp: 0, epfEmpr: 0, socsoEmp: 0, socsoEmpr: 0, eisEmp: 0, eisEmpr: 0, pcb: 0 };
+        }
         
-        const epf = calculateEpf(grossPay, age, false, config);
-        const socso = calculateSocso(grossPay, age, config);
-        const eis = calculateEis(grossPay, age, config);
-        const pcb = calculatePcb(grossPay, epf.employee, tp1Relief, age, config);
+        const epf = calculateEpf(epfWage, age, false, config);
+        const socso = calculateSocso(socsoWage, age, config);
+        const eis = calculateEis(eisWage, age, config);
+        const pcb = calculatePcb(pcbWage, epf.employee, tp1Relief, age, config);
 
         return {
             epfEmp: epf.employee,
@@ -3509,6 +3624,18 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
     }
 
     function generatePayrollData(m, ratesSnapshot) {
+        m = m || $('#monthSelect').val();
+        if (!m || !m.includes('-')) return [];
+
+        const compFilter = $('#summaryCompanySelect').val() || $('#attendanceCompanySelect').val() || 'ALL';
+        const mKey = (compFilter && compFilter !== 'ALL') ? `${m}__${compFilter}` : m;
+        const lockedRecord = lockedMonthsData[mKey] || lockedMonthsData[m];
+        if (lockedRecord && lockedRecord.payrollRows && Array.isArray(lockedRecord.payrollRows) && lockedRecord.payrollRows.length > 0 && !ratesSnapshot) {
+            return JSON.parse(JSON.stringify(lockedRecord.payrollRows));
+        }
+
+        const effectiveRates = ratesSnapshot || (lockedRecord && lockedRecord.rates ? lockedRecord.rates : staffSettings);
+
         const payrollRows = [];
         const [year, month] = m.split('-').map(Number);
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -3520,7 +3647,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const yearStr = String(year);
 
         staffList.forEach(([id, name]) => {
-            const settings = ratesSnapshot[id] || ratesSnapshot[name] || { basic: 0, restDays: [] };
+            const settings = effectiveRates[id] || effectiveRates[name] || { basic: 0, restDays: [] };
             const basicSalary = parseFloat(settings.basic);
             
             if (basicSalary <= 0) return; 
@@ -3553,18 +3680,33 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                 let totalOTRow = overlapOT + extraOT;
 
                 let rowOTPay = 0;
+                const otEligible = isStaffOtEligible(sObj, settings);
 
                 if (d.manualOTPay !== null && d.manualOTPay !== undefined && d.manualOTPay !== '') {
+                    // Manual HR override is always respected as a special condition
                     rowOTPay = parseFloat(d.manualOTPay) || 0;
+                } else if (!otEligible) {
+                    // Employees earning > RM4,000 without contractual entitlement are NOT eligible for automatic OT
+                    rowOTPay = 0;
                 } else {
+                    const orp = basicSalary > 0 ? (basicSalary / 26) : 0;
+                    const hrp = orp > 0 ? (orp / 8) : hourlyRate;
+
                     if (payType === "PH" && (totalTimeHrs > 0 || totalOTRow > 0)) {
-                        let ph2 = (parseFloat(d.payableHrs) || 0) + totalOTRow;
-                        rowOTPay = ph2 * hourlyRate * 3.0;
+                        const normalHrs = Math.min(8, totalTimeHrs || 0);
+                        const exceedHrs = Math.max(0, totalTimeHrs - 8) + totalOTRow;
+                        rowOTPay = (normalHrs > 0 ? (2.0 * orp) : 0) + (exceedHrs * hrp * 3.0);
                     } else if (payType === "RD" && (totalTimeHrs > 0 || totalOTRow > 0)) {
-                        let rdBase = Math.min(8, totalTimeHrs || 0);
-                        rowOTPay = (rdBase * hourlyRate * 2.0) + (totalOTRow * hourlyRate * 2.0);
-                    } else if (totalTimeHrs > 0 || totalOTRow > 0) {
-                        rowOTPay = totalOTRow * hourlyRate * 1.5;
+                        if (totalTimeHrs <= 4 && totalTimeHrs > 0) {
+                            rowOTPay = 0.5 * orp + (totalOTRow * hrp * 2.0);
+                        } else if (totalTimeHrs > 4) {
+                            const exceedHrs = Math.max(0, totalTimeHrs - 8) + totalOTRow;
+                            rowOTPay = 1.0 * orp + (exceedHrs * hrp * 2.0);
+                        } else {
+                            rowOTPay = totalOTRow * hrp * 2.0;
+                        }
+                    } else if (totalOTRow > 0) {
+                        rowOTPay = totalOTRow * hrp * 1.5;
                     }
                 }
 
@@ -3602,12 +3744,14 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                 }
             }
 
-            // 4. Gross pay
-            const grossPay = Math.round((basic - nplDeduction + zeroMcAward + totalOTPay) * 100) / 100;
+            // 4. Gross pay including fixed allowance
+            const fixedAllowance = parseFloat(settings.fixedAllowance || staffObj.fixedAllowance) || 0;
+            const fixedAllowances = settings.fixedAllowances || staffObj.fixedAllowances || [];
+            const grossPay = Math.round((basic - nplDeduction + fixedAllowance + zeroMcAward + totalOTPay) * 100) / 100;
 
             if (grossPay > 0 || workedDays > 0) {
                 const age = Number(staffObj.ageSource || staffObj.age) || 30;
-                const stat = calcStatutory(grossPay, age);
+                const stat = calcStatutory({ basic: (basic - nplDeduction), fixedAllowances, grossPay }, age);
                 const totalEmpDed = Math.round((stat.epfEmp + stat.socsoEmp + stat.eisEmp + (stat.pcb || 0)) * 100) / 100;
                 const totalEmprCont = Math.round((stat.epfEmpr + stat.socsoEmpr + stat.eisEmpr) * 100) / 100;
 
@@ -3672,8 +3816,20 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const ratesSnapshot = {};
         staffList.forEach(([id, name]) => {
             const s = staffSettings[id] || staffSettings[name] || { basic: 0, restDays: [] };
-            ratesSnapshot[id] = { basic: s.basic, restDays: s.restDays };
-            ratesSnapshot[name] = { basic: s.basic, restDays: s.restDays }; 
+            const basic = parseFloat(s.basic) || 0;
+            const hourly = basic > 0 ? parseFloat((basic / 26 / 8).toFixed(2)) : 0;
+            const snap = {
+                basic: basic,
+                hourly: hourly,
+                fixedAllowance: parseFloat(s.fixedAllowance) || 0,
+                fixedAllowances: s.fixedAllowances || [],
+                otEligible: isStaffOtEligible(s),
+                restDays: s.restDays || [],
+                role: s.role || 'Staff',
+                age: s.ageSource || s.age || 30
+            };
+            ratesSnapshot[id] = snap;
+            ratesSnapshot[name] = snap; 
         });
 
         const payrollData = generatePayrollData(m, ratesSnapshot);
@@ -3683,6 +3839,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             company: comp,
             data: {
                 rates: ratesSnapshot,
+                payrollRows: payrollData,
                 savedAt: timestamp,
                 company: comp,
                 approvalStatus: 'Locked',
@@ -4189,6 +4346,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                         const hasAttendance = hasClockIn || hasClockOut;
                         const isApprovedLeave = Boolean(leaveOnDate);
 
+                        const isToday = fd.date === todayKl;
                         const isFutureDate = fd.date > todayKl;
                         const singleAssignedShift = (assignedShift || '—').split(',')[0].trim();
 
@@ -4212,6 +4370,14 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                             finalShift = leaveOnDate.type || 'Leave';
                         } else if (isPH) {
                             finalShift = isPH.name || 'Public Holiday';
+                        } else if (isToday) {
+                            // Today attendance will not be RD, just leave it blank because the attendance not yet sync to system
+                            finalShift = (existing && existing.manualShift && existing.manualShift !== 'AUTO') ? existing.manualShift : '-';
+                            if (!existing || !existing.manualPayType || existing.manualPayType === 'AUTO') {
+                                finalPayType = '-';
+                                rowClass = '';
+                                finalRemark = '';
+                            }
                         } else {
                             finalShift = 'Off / Rest';
                             if ((!existing || !existing.manualPayType || existing.manualPayType === 'AUTO') && (finalPayType === 'NM' || autoPayType === 'NM')) {
@@ -5623,6 +5789,187 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         }
     }
 
+
+    
+    
+    function updateStaffOtBadge() {
+        const checked = $('#staffOtEligible').is(':checked');
+        const basic = parseFloat($('#staffBasic').val()) || 0;
+        const $badge = $('#staffOtStatusBadge');
+        if (checked) {
+            if (basic > 4000) {
+                $badge.text('Eligible (Special Condition)').removeClass('bg-secondary-subtle text-secondary bg-danger-subtle text-danger').addClass('bg-success-subtle text-success');
+            } else {
+                $badge.text('Eligible (EA 1955)').removeClass('bg-secondary-subtle text-secondary bg-danger-subtle text-danger').addClass('bg-success-subtle text-success');
+            }
+        } else {
+            $badge.text('Not Eligible (No OT)').removeClass('bg-secondary-subtle text-secondary bg-success-subtle text-success').addClass('bg-danger-subtle text-danger');
+        }
+    }
+
+    function isStaffOtEligible(staffObj, settings) {
+        const s = Object.assign({}, staffObj || {}, settings || {});
+        // Explicit contractual entitlement / special condition override
+        if (s.otEligible !== undefined && s.otEligible !== null && s.otEligible !== '') {
+            return (s.otEligible === true || s.otEligible === 'true' || s.otEligible === 1 || s.otEligible === 'Yes');
+        }
+        // Default eligibility under Malaysian Employment Act 1955:
+        // Basic salary <= RM4,000 per month
+        const basic = parseFloat(s.basic) || 0;
+        if (basic <= 4000) return true;
+        // Site workers / manual labor
+        const wb = String(s.workBase || '').toUpperCase();
+        if (wb === 'SITE' && basic <= 7000) return true;
+        return false;
+    }
+
+    function getAvailableAllowanceTypes() {
+        if (typeof window !== 'undefined' && window.statutorySettings?.allowanceTypes && window.statutorySettings.allowanceTypes.length) {
+            return window.statutorySettings.allowanceTypes;
+        }
+        try {
+            const raw = localStorage.getItem('hr_statutory_settings');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.allowanceTypes && parsed.allowanceTypes.length) return parsed.allowanceTypes;
+            }
+        } catch (_) {}
+        return DEFAULT_ALLOWANCE_TYPES;
+    }
+
+    function addStaffAllowanceRow(category = '', amount = '', remarks = '') {
+        const types = getAvailableAllowanceTypes();
+        const optionsHtml = types.map(t => {
+            const isSel = (category && (t.name === category || t.id === category)) ? 'selected' : '';
+            return `<option value="${t.name}" ${isSel}>${t.name}</option>`;
+        }).join('');
+
+        const rowHtml = `
+            <tr class="staff-allowance-row">
+                <td>
+                    <select class="form-select form-select-sm staff-allowance-cat" onchange="recalcStaffAllowanceTotal()">
+                        <option value="">-- Select Category --</option>
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">RM</span>
+                        <input type="number" step="0.01" min="0" class="form-control staff-allowance-amount" value="${amount !== '' ? amount : ''}" placeholder="0.00" oninput="recalcStaffAllowanceTotal()">
+                    </div>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-allowance-remarks" value="${remarks || ''}" placeholder="e.g. Monthly fixed / travel">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm p-0 px-2" title="Remove allowance" onclick="removeStaffAllowanceRow(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+        $('#staffAllowanceTableBody').append(rowHtml);
+        recalcStaffAllowanceTotal();
+    }
+
+    function removeStaffAllowanceRow(btn) {
+        $(btn).closest('tr').remove();
+        recalcStaffAllowanceTotal();
+    }
+
+    function recalcStaffAllowanceTotal() {
+        let sum = 0;
+        $('#staffAllowanceTableBody tr.staff-allowance-row').each(function() {
+            const amt = parseFloat($(this).find('.staff-allowance-amount').val()) || 0;
+            sum += amt;
+        });
+        $('#staffFixedAllowance').val(sum > 0 ? sum.toFixed(2) : '');
+        $('#staffAllowanceTotalDisplay').text('RM ' + sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    }
+
+    function collectStaffAllowances() {
+        const list = [];
+        $('#staffAllowanceTableBody tr.staff-allowance-row').each(function() {
+            const category = $(this).find('.staff-allowance-cat').val();
+            const amount = parseFloat($(this).find('.staff-allowance-amount').val()) || 0;
+            const remarks = $(this).find('.staff-allowance-remarks').val() || '';
+            if (category || amount > 0) {
+                list.push({ category: category || 'Other Allowance', amount, remarks });
+            }
+        });
+        return list;
+    }
+
+    function addStaffResourceRow(item = {}) {
+        const rowId = item.id || ('res_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+        const isRet = Boolean(item.returned);
+        const rowHtml = `
+            <tr class="staff-resource-row" data-id="${rowId}">
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-res-name" value="${item.name || ''}" placeholder="e.g. Laptop, Phone, Access Card" required>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-res-serial" value="${item.serialNo || ''}" placeholder="e.g. SN-88291 / Tag">
+                </td>
+                <td>
+                    <input type="date" class="form-control form-control-sm staff-res-issue" value="${item.issueDate || ''}">
+                </td>
+                <td class="text-center">
+                    <div class="form-check d-flex justify-content-center mb-0">
+                        <input type="checkbox" class="form-check-input staff-res-returned" ${isRet ? 'checked' : ''} onchange="handleResourceReturnedChange(this)">
+                    </div>
+                </td>
+                <td>
+                    <input type="date" class="form-control form-control-sm staff-res-retdate" value="${item.returnedDate || ''}">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-res-remarks" value="${item.remarks || ''}" placeholder="Return condition / handover notes">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm p-0 px-2" title="Remove resource" onclick="removeStaffResourceRow(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+        $('#staffResourcesTableBody').append(rowHtml);
+    }
+
+    function removeStaffResourceRow(btn) {
+        $(btn).closest('tr').remove();
+    }
+
+    function handleResourceReturnedChange(chk) {
+        const $row = $(chk).closest('tr');
+        const $dateInput = $row.find('.staff-res-retdate');
+        if (chk.checked) {
+            if (!$dateInput.val()) {
+                const todayIso = new Date().toISOString().split('T')[0];
+                $dateInput.val(todayIso);
+            }
+            $row.addClass('table-success-subtle');
+        } else {
+            $row.removeClass('table-success-subtle');
+        }
+    }
+
+    function collectStaffResources() {
+        const list = [];
+        $('#staffResourcesTableBody tr.staff-resource-row').each(function() {
+            const id = $(this).attr('data-id') || ('res_' + Date.now());
+            const name = $(this).find('.staff-res-name').val().trim();
+            const serialNo = $(this).find('.staff-res-serial').val().trim();
+            const issueDate = $(this).find('.staff-res-issue').val() || '';
+            const returned = $(this).find('.staff-res-returned').is(':checked');
+            const returnedDate = $(this).find('.staff-res-retdate').val() || '';
+            const remarks = $(this).find('.staff-res-remarks').val().trim();
+            if (name || serialNo) {
+                list.push({ id, name, serialNo, issueDate, returned, returnedDate, remarks });
+            }
+        });
+        return list;
+    }
+
     async function openStaffModal(mode, staffName = "") {
         const isHrDeptHod = ['HOD', 'Supervisor'].includes(currentUser?.role) && (
             String(currentUser?.departmentId || '').toUpperCase() === 'HR' ||
@@ -5642,6 +5989,8 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         $('#staffJoined, #staffConfirm').prop('readonly', false).removeClass('bg-light');
         $('#currentAttachment').html('');
         $('#staffRestDaysGroup input').prop('checked', false);
+        $('#staffAllowanceTableBody').empty();
+        $('#staffResourcesTableBody').empty();
 
         selectedFileBase64 = null; selectedFileName = null; selectedFileMime = null;
         $('#staffModalMode').val(mode); $('#staffOriginalName').val(staffName);
@@ -5677,6 +6026,10 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             $('#staffEmergency').val(s.emergency);
             $('#staffAddress').val(s.address);
             $('#staffBasic').val(s.basic);
+            const isOtAuto = isStaffOtEligible(s);
+            $('#staffOtEligible').prop('checked', s.otEligible !== undefined ? Boolean(s.otEligible) : isOtAuto);
+            updateStaffOtBadge();
+            $('#staffBasic, #staffOtEligible').off('change.ot input.ot').on('change.ot input.ot', updateStaffOtBadge);
 
             $('#staffEpfNo').val(s.epfNo);
             $('#staffSocsoNo').val(s.socsoNo);
@@ -5720,7 +6073,14 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const profile=staffSettings[staffName]||{};
 
         $('#staffEmail').val(profile.email ?? '');
-        $('#staffRace').val(profile.race ?? '');
+        const rawRace = String(profile.race || '').trim().toUpperCase();
+        if (['CHINESE', 'MALAY', 'INDIAN', 'OTHERS'].includes(rawRace)) {
+            $('#staffRace').val(rawRace);
+        } else if (rawRace) {
+            $('#staffRace').val('OTHERS');
+        } else {
+            $('#staffRace').val('');
+        }
         $('#staffAgeSource').val(profile.ageSource ?? '');
         $('#staffAcademicLevel').val(profile.academicLevel ?? '');
         $('#staffServiceYearsSource').val(profile.serviceYearsSource ?? '');
@@ -5865,7 +6225,7 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                     if (found) mgrEl.value = found.name;
                 }
             }
-            $('#staffEmployeeNo').val(profile.employeeNo||'').prop('readonly',Boolean(profile.employeeNo));
+            $('#staffEmployeeNo').val(profile.employeeNo||'').prop('readonly', false);
             $('#staffBiometricId').val(profile.biometricId || '');
             $('#staffAssignedResources').val(profile.assignedResources||'No resources assigned');
             const jobs=records.jobTitles||[],grades=records.jobGrades||[];
@@ -6112,6 +6472,28 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         const hasCached = currentRecords && currentRecords.companies && currentRecords.companies.length;
         if (hasCached) {
             populateStaffModalHr(currentRecords, currentEmployees);
+        // Populate allowances breakdown
+        $('#staffAllowanceTableBody').empty();
+        const existingAllowances = (profile && profile.fixedAllowances && Array.isArray(profile.fixedAllowances) && profile.fixedAllowances.length)
+            ? profile.fixedAllowances
+            : ((profile && profile.fixedAllowance > 0) ? [{ category: 'Other Allowance', amount: profile.fixedAllowance, remarks: 'Monthly fixed' }] : []);
+        if (existingAllowances.length > 0) {
+            existingAllowances.forEach(a => addStaffAllowanceRow(a.category, a.amount, a.remarks));
+        } else {
+            addStaffAllowanceRow();
+        }
+        recalcStaffAllowanceTotal();
+
+        // Populate resources custody
+        $('#staffResourcesTableBody').empty();
+        const existingResources = (profile && profile.resources && Array.isArray(profile.resources) && profile.resources.length)
+            ? profile.resources
+            : (profile && profile.assignedResources && profile.assignedResources !== 'No resources assigned' ? [{ name: profile.assignedResources, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }] : []);
+        if (existingResources.length > 0) {
+            existingResources.forEach(r => addStaffResourceRow(r));
+        } else {
+            addStaffResourceRow();
+        }
             apiPost('hrBootstrap', {}).then(response => {
                 if (response && response.status === 'success' && response.data) {
                     cachedHrBootstrapData = response.data;
@@ -6215,6 +6597,26 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             }
         }
 
+        const statusVal = $('#staffStatus').val() || 'Active';
+        const resignDateVal = $('#staffResignDate').val() || '';
+        const isResigning = (statusVal === 'Resigned' || Boolean(resignDateVal));
+
+        const resources = collectStaffResources();
+        if (isResigning && resources.length > 0) {
+            const unreturned = resources.filter(r => !r.returned || !r.returnedDate || !String(r.remarks || '').trim());
+            if (unreturned.length > 0) {
+                const resTabBtn = document.getElementById('staff-tab-resources-btn');
+                if (resTabBtn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                    bootstrap.Tab.getOrCreateInstance(resTabBtn).show();
+                }
+                const missingList = unreturned.map(r => `• ${r.name || 'Unnamed item'}${r.serialNo ? ' (' + r.serialNo + ')' : ''} (Check Returned, set Return Date & Remarks)`).join('\n');
+                return alert(`Resignation cannot be saved until all company resources are confirmed returned.\n\nPlease complete the return handover for the following item(s):\n\n${missingList}`);
+            }
+        }
+
+        const fixedAllowances = collectStaffAllowances();
+        const fixedAllowanceTotal = parseFloat($('#staffFixedAllowance').val()) || 0;
+
         const basic = parseFloat($('#staffBasic').val()) || 0;
         const hourly = basic > 0 ? (basic / 26 / 8).toFixed(2) : 0;
         
@@ -6281,7 +6683,9 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             icNo: $('#staffIcNo').val(), gender: $('#staffGender').val() || 'Male',
             username: $('#staffUsername').val(), password: $('#staffPassword').val(), role: $('#staffRole').val() || 'User',
             contactNo: $('#staffContact').val(), emergency: $('#staffEmergency').val(), address: $('#staffAddress').val(),
-            basic: basic, hourly: hourly, joinedDate: $('#staffJoined').val(), confirmDate: $('#staffConfirm').val(),
+            basic: basic, hourly: hourly, otEligible: $('#staffOtEligible').is(':checked'), joinedDate: $('#staffJoined').val(), confirmDate: $('#staffConfirm').val(),
+            fixedAllowance: fixedAllowanceTotal, fixedAllowances: fixedAllowances,
+            resources: resources, assignedResources: (resources.map(r => `${r.name || 'Item'}${r.serialNo ? ' [' + r.serialNo + ']' : ''}${r.returned ? ' (Returned ' + r.returnedDate + ')' : ''}`).join('; ') || 'No resources assigned'),
             epfNo: $('#staffEpfNo').val(), socsoNo: $('#staffSocsoNo').val(), taxNo: $('#staffTaxNo').val(), bankNo: $('#staffBankNo').val(),
             alEntitlement: $('#staffAlEntitlement').val(), mcEntitlement: $('#staffMcEntitlement').val(),
             restDays: restDays,
@@ -6667,6 +7071,169 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         renderHolidayMgmt();
     }
 
+    async function downloadHolidayTemplate() {
+        try {
+            const XLSX = (await import('xlsx-js-style')).default;
+            const wb = XLSX.utils.book_new();
+
+            const headers = ['Date', 'Public Holiday', 'Company', 'Work Base', 'Location', 'OFFICE_PG', 'OFFICE_SEL', 'SITE_PG', 'SITE_SEL', 'SITE_KL', 'SITE_NS'];
+            const sourceList = (holidays && holidays.length) ? holidays : DEFAULT_2026_HOLIDAYS;
+            const sampleRows = sourceList.map(h => [
+                h.date || '',
+                h.name || '',
+                h.company || 'All',
+                h.workBase || 'All',
+                h.location || 'All',
+                (h.matrix && (h.matrix.OFFICE_PG === 1 || h.matrix.OFFICE_PG === true)) ? 1 : 0,
+                (h.matrix && (h.matrix.OFFICE_SEL === 1 || h.matrix.OFFICE_SEL === true)) ? 1 : 0,
+                (h.matrix && (h.matrix.SITE_PG === 1 || h.matrix.SITE_PG === true)) ? 1 : 0,
+                (h.matrix && (h.matrix.SITE_SEL === 1 || h.matrix.SITE_SEL === true)) ? 1 : 0,
+                (h.matrix && (h.matrix.SITE_KL === 1 || h.matrix.SITE_KL === true)) ? 1 : 0,
+                (h.matrix && (h.matrix.SITE_NS === 1 || h.matrix.SITE_NS === true)) ? 1 : 0,
+            ]);
+
+            const wsData = [headers, ...sampleRows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            ws['!cols'] = [
+                { wch: 14 }, // Date
+                { wch: 42 }, // Public Holiday
+                { wch: 12 }, // Company
+                { wch: 12 }, // Work Base
+                { wch: 12 }, // Location
+                { wch: 12 }, // OFFICE_PG
+                { wch: 12 }, // OFFICE_SEL
+                { wch: 12 }, // SITE_PG
+                { wch: 12 }, // SITE_SEL
+                { wch: 12 }, // SITE_KL
+                { wch: 12 }  // SITE_NS
+            ];
+
+            const headerStyle = {
+                font: { bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "198754" } },
+                alignment: { horizontal: "center", vertical: "center" }
+            };
+
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:K1');
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (ws[cellAddress]) ws[cellAddress].s = headerStyle;
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, "Public Holidays");
+            XLSX.writeFile(wb, "PeopleOS_Public_Holidays_Template_2026.xlsx");
+        } catch (e) {
+            console.error("Failed to download holiday template:", e);
+            alert("Error downloading holiday template: " + e.message);
+        }
+    }
+
+    async function handleHolidayFileUpload(event) {
+        if (!isAdmin && !['Admin', 'HR'].includes(currentUser?.role)) {
+            alert('Admin or HR access required to upload holidays.');
+            return;
+        }
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+
+        try {
+            const XLSX = (await import('xlsx-js-style')).default;
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+
+            if (!rawRows || rawRows.length < 2) {
+                alert('No holiday data found in the uploaded file.');
+                return;
+            }
+
+            const headerRow = rawRows[0].map(h => String(h || '').trim().toUpperCase().replace(/[\s_-]+/g, ''));
+            const dateColIdx = headerRow.findIndex(h => h.includes('DATE'));
+            const nameColIdx = headerRow.findIndex(h => h.includes('HOLIDAY') || h.includes('NAME') || h.includes('TITLE'));
+            const compColIdx = headerRow.findIndex(h => h.includes('COMPANY'));
+            const baseColIdx = headerRow.findIndex(h => h.includes('BASE'));
+            const locColIdx = headerRow.findIndex(h => h.includes('LOC'));
+
+            const matrixColKeys = ['OFFICE_PG', 'OFFICE_SEL', 'SITE_PG', 'SITE_SEL', 'SITE_KL', 'SITE_NS'];
+            const matrixIndices = {};
+            matrixColKeys.forEach(k => {
+                const cleanK = k.replace('_', '');
+                matrixIndices[k] = headerRow.findIndex(h => h === k || h === cleanK);
+            });
+
+            const parsedHolidays = [];
+            for (let i = 1; i < rawRows.length; i++) {
+                const row = rawRows[i];
+                if (!row || !row.length) continue;
+                const rawDate = row[dateColIdx !== -1 ? dateColIdx : 0];
+                const rawName = row[nameColIdx !== -1 ? nameColIdx : 1];
+                if (!rawDate && !rawName) continue;
+
+                const normDate = parseDateDMYToISO(rawDate) || normalizeDateStr(rawDate);
+                if (!normDate) continue;
+
+                const comp = compColIdx !== -1 ? String(row[compColIdx] || 'All').trim() : 'All';
+                const base = baseColIdx !== -1 ? String(row[baseColIdx] || 'All').trim() : 'All';
+                const loc = locColIdx !== -1 ? String(row[locColIdx] || 'All').trim() : 'All';
+
+                const matrix = {};
+                matrixColKeys.forEach(k => {
+                    const idx = matrixIndices[k];
+                    if (idx !== -1 && row[idx] !== undefined) {
+                        const val = String(row[idx]).trim();
+                        matrix[k] = (val === '1' || val.toLowerCase() === 'true' || val.toLowerCase() === 'yes' || val === '✓') ? 1 : 0;
+                    } else {
+                        matrix[k] = 1;
+                    }
+                });
+
+                parsedHolidays.push({
+                    date: normDate,
+                    name: String(rawName || 'Public Holiday').trim(),
+                    company: comp || 'All',
+                    workBase: base || 'All',
+                    location: loc || 'All',
+                    matrix
+                });
+            }
+
+            if (parsedHolidays.length === 0) {
+                alert('Could not parse any valid holidays from file. Please ensure Date and Holiday Name columns exist.');
+                return;
+            }
+
+            // Merge or update into existing holidays
+            const existingMap = new Map();
+            (holidays || []).forEach(h => {
+                const k = `${normalizeDateStr(h.date)}|${String(h.name || '').trim().toUpperCase()}`;
+                existingMap.set(k, h);
+            });
+
+            parsedHolidays.forEach(ph => {
+                const k = `${normalizeDateStr(ph.date)}|${String(ph.name || '').trim().toUpperCase()}`;
+                existingMap.set(k, ph);
+            });
+
+            holidays = Array.from(existingMap.values()).sort((a, b) => {
+                const da = parseDateDMYToISO(a && a.date);
+                const db = parseDateDMYToISO(b && b.date);
+                return da.localeCompare(db);
+            });
+
+            renderHolidayMgmt();
+            await syncHolidaysToDB();
+            alert(`Successfully loaded ${parsedHolidays.length} holidays from file and synced to backend!`);
+        } catch (err) {
+            console.error('Failed to parse holiday file:', err);
+            alert('Error parsing holiday file: ' + err.message);
+        } finally {
+            if (event.target) event.target.value = '';
+        }
+    }
+
     function loadDefault2026HolidayMatrix() {
         if (!isAdmin && !['Admin', 'HR'].includes(currentUser?.role)) return;
         if (!confirm("Merge the 2026 preset into the current schedule? Existing custom records and other years will be preserved. Review all dates and entitlements before saving.")) return;
@@ -6786,10 +7353,20 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
     }
 
 
-export const dashboardActions = { confirmLeaveDecision, renderMyLeaveHistory, filterStaffCards, renderSummaryDashboard, renderPie, resetPie, getTieredWage, calcStatutory, calculatePeriodDataRange, processLogin, applyUserRoleUI, logout, switchTab, switchMobileTab, fetchPayslips, formatMonthStr, renderSelectedPayslip, closePayslip, printPayslip, handleLeaveTypeChange, loadStaffPortal, loadMyProfile, updateMyProfile, calculateLeaveDays, handleLeaveFileUpload, handleHalfDayChange, submitLeaveApp, fetchMyLeave, withdrawLeave, fetchLeaveManagementData, processLeave, toggleSummaryView, toggleReportType, formatTimeForInput, generateColors, apiPost, formatLocalDate, formatDateDMY, parseDateDMYToISO, initializeApp, calculateStats, handleFile, parseData, generatePayrollData, lockCurrentMonth, unlockCurrentMonth, renderDashboard, syncToGoogleSheets, openEditModal, saveRowEdit, updateStaffAttendanceRemark, buildTable, handleReportExport, exportOTClaimForm, exportSummaryRange, exportToExcel, renderStaffMgmt, handleStaffFileUpload, addNewStaff, openStaffModal, saveStaffProfile, saveBiometricLocally, uploadStaffDocuments, saveStaffPayslipToFolder, saveRateLocally, syncSingleStaff, deleteStaff, renderHolidayMgmt, addHolidayRow, syncHolidaysToDB, toggleHolidayMatrixCell, toggleHolidayRowAll, deleteHolidayRow, loadDefault2026HolidayMatrix, updateHolidayField, updateHolidayDateFromText, handleStatusChange, toggleForgotPass, processResetPassword, checkSplitLeaveOffer, enableSplitLeave, handleSplitDaysInput, handleAttendanceCompanyChange, handleAttendanceDepartmentChange, handleStaffCompanyFilterChange, setStaffViewMode, populateAttendanceFilters, populateStaffFilters, handleSummaryCompanyChange, populateSummaryFilters, recommendAttendanceHOD, approveAttendanceHR, rejectAttendanceApproval, fetchActionCount, findStaffSetting, isRecordForStaff, getStaffSettings: () => staffSettings };
+export const dashboardActions = { isStaffOtEligible, updateStaffOtBadge, addStaffAllowanceRow, removeStaffAllowanceRow, recalcStaffAllowanceTotal, addStaffResourceRow, removeStaffResourceRow, handleResourceReturnedChange, downloadHolidayTemplate, handleHolidayFileUpload, confirmLeaveDecision, renderMyLeaveHistory, filterStaffCards, renderSummaryDashboard, renderPie, resetPie, getTieredWage, calcStatutory, calculatePeriodDataRange, processLogin, applyUserRoleUI, logout, switchTab, switchMobileTab, fetchPayslips, formatMonthStr, renderSelectedPayslip, closePayslip, printPayslip, handleLeaveTypeChange, loadStaffPortal, loadMyProfile, updateMyProfile, calculateLeaveDays, handleLeaveFileUpload, handleHalfDayChange, submitLeaveApp, fetchMyLeave, withdrawLeave, fetchLeaveManagementData, processLeave, toggleSummaryView, toggleReportType, formatTimeForInput, generateColors, apiPost, formatLocalDate, formatDateDMY, parseDateDMYToISO, initializeApp, calculateStats, handleFile, parseData, generatePayrollData, lockCurrentMonth, unlockCurrentMonth, renderDashboard, syncToGoogleSheets, openEditModal, saveRowEdit, updateStaffAttendanceRemark, buildTable, handleReportExport, exportOTClaimForm, exportSummaryRange, exportToExcel, renderStaffMgmt, handleStaffFileUpload, addNewStaff, openStaffModal, saveStaffProfile, saveBiometricLocally, uploadStaffDocuments, saveStaffPayslipToFolder, saveRateLocally, syncSingleStaff, deleteStaff, renderHolidayMgmt, addHolidayRow, syncHolidaysToDB, toggleHolidayMatrixCell, toggleHolidayRowAll, deleteHolidayRow, loadDefault2026HolidayMatrix, updateHolidayField, updateHolidayDateFromText, handleStatusChange, toggleForgotPass, processResetPassword, checkSplitLeaveOffer, enableSplitLeave, handleSplitDaysInput, handleAttendanceCompanyChange, handleAttendanceDepartmentChange, handleStaffCompanyFilterChange, setStaffViewMode, populateAttendanceFilters, populateStaffFilters, handleSummaryCompanyChange, populateSummaryFilters, recommendAttendanceHOD, approveAttendanceHR, rejectAttendanceApproval, fetchActionCount, findStaffSetting, isRecordForStaff, getStaffSettings: () => staffSettings };
 
 if (typeof window !== 'undefined') {
     window.dashboardActions = dashboardActions;
+    window.isStaffOtEligible = isStaffOtEligible;
+    window.updateStaffOtBadge = updateStaffOtBadge;
+    window.addStaffAllowanceRow = addStaffAllowanceRow;
+    window.removeStaffAllowanceRow = removeStaffAllowanceRow;
+    window.recalcStaffAllowanceTotal = recalcStaffAllowanceTotal;
+    window.addStaffResourceRow = addStaffResourceRow;
+    window.removeStaffResourceRow = removeStaffResourceRow;
+    window.handleResourceReturnedChange = handleResourceReturnedChange;
+    window.downloadHolidayTemplate = downloadHolidayTemplate;
+    window.handleHolidayFileUpload = handleHolidayFileUpload;
     window.updateStaffAttendanceRemark = updateStaffAttendanceRemark;
     window.switchTab = switchTab;
     window.recommendAttendanceHOD = recommendAttendanceHOD;

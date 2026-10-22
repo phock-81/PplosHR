@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue';
 import { dashboardActions } from '../services/dashboard';
-import { DEFAULT_STATUTORY_CONFIG, TP1_RELIEF_CAPS } from '../services/statutory';
+import { DEFAULT_STATUTORY_CONFIG, TP1_RELIEF_CAPS, DEFAULT_ALLOWANCE_TYPES } from '../services/statutory';
 
 const props = defineProps({
   modelValue: {
@@ -76,7 +76,8 @@ const form = ref({
       C: 'Not listed',
       W: 'Not listed'
     }
-  }
+  },
+  allowanceTypes: JSON.parse(JSON.stringify(DEFAULT_ALLOWANCE_TYPES))
 });
 
 const regulations = [
@@ -129,7 +130,10 @@ async function loadSettings() {
           wellnessByGrade: { ...form.value.inductionBenefits.wellnessByGrade, ...(res.data.inductionBenefits?.wellnessByGrade || {}) },
           checkupByGrade: { ...form.value.inductionBenefits.checkupByGrade, ...(res.data.inductionBenefits?.checkupByGrade || {}) },
           outstationMeals: { ...form.value.inductionBenefits.outstationMeals, ...(res.data.inductionBenefits?.outstationMeals || {}) }
-        }
+        },
+        allowanceTypes: (res.data.allowanceTypes && Array.isArray(res.data.allowanceTypes) && res.data.allowanceTypes.length)
+          ? res.data.allowanceTypes
+          : form.value.allowanceTypes
       };
     }
   } catch (err) {
@@ -162,7 +166,27 @@ function resetDefaults() {
     checkupByGrade: { S: 800, M: 500, E: 0, C: 0, W: 0 },
     outstationMeals: { S: 'Actual expense with receipt', M: 70, E: 50, C: 'Not listed', W: 'Not listed' }
   };
+  form.value.allowanceTypes = JSON.parse(JSON.stringify(DEFAULT_ALLOWANCE_TYPES));
   success.value = 'Defaults restored. Click Save Settings to persist changes.';
+}
+
+function addAllowanceType() {
+  form.value.allowanceTypes.push({
+    id: 'allowance_' + Date.now(),
+    name: 'New Allowance',
+    epf: true,
+    socso: true,
+    eis: true,
+    pcb: true,
+    description: 'Custom company fixed allowance'
+  });
+}
+
+function removeAllowanceType(index) {
+  const item = form.value.allowanceTypes[index];
+  if (confirm(`Remove allowance category "${item?.name || 'this allowance'}"?`)) {
+    form.value.allowanceTypes.splice(index, 1);
+  }
 }
 
 async function saveSettings() {
@@ -316,6 +340,16 @@ onMounted(() => {
                 @click="activeTab = 'policy'"
               >
                 <i class="bi bi-briefcase me-1"></i> Overtime & Induction Benefits
+              </button>
+            </li>
+            <li class="nav-item">
+              <button
+                type="button"
+                class="nav-link py-1 px-3"
+                :class="{ active: activeTab === 'allowances' }"
+                @click="activeTab = 'allowances'"
+              >
+                <i class="bi bi-wallet2 me-1"></i> Fixed Allowance Types
               </button>
             </li>
           </ul>
@@ -861,6 +895,126 @@ onMounted(() => {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Fixed Allowance Types & Statutory Compliance -->
+          <div v-else-if="activeTab === 'allowances'">
+            <div class="alert alert-light border small py-2 mb-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>Fixed Allowance Categories &amp; Statutory Rules:</strong>
+                  Configure company allowance types and define whether each allowance is subject to EPF (Act 452), SOCSO (Act 4), EIS (Act 800), and PCB Tax (Income Tax Act 1967).
+                </div>
+                <button
+                  v-if="canEdit"
+                  type="button"
+                  class="btn btn-outline-primary btn-sm py-1 px-2 fw-semibold"
+                  :disabled="saving"
+                  @click="addAllowanceType"
+                >
+                  <i class="bi bi-plus-circle me-1"></i> Add Category
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm align-middle">
+                <thead class="table-light small">
+                  <tr>
+                    <th style="min-width: 190px;">Allowance Category Name</th>
+                    <th class="text-center" style="width: 70px;" title="Employees Provident Fund Act 1991">EPF</th>
+                    <th class="text-center" style="width: 70px;" title="Employees' Social Security Act 1969">SOCSO</th>
+                    <th class="text-center" style="width: 70px;" title="Employment Insurance System Act 2017">EIS</th>
+                    <th class="text-center" style="width: 70px;" title="Income Tax Act 1967 (PCB)">PCB Tax</th>
+                    <th>Regulatory Context / Guidelines</th>
+                    <th v-if="canEdit" class="text-center" style="width: 50px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, idx) in form.allowanceTypes" :key="item.id || idx">
+                    <td>
+                      <input
+                        v-model="item.name"
+                        class="form-control form-control-sm fw-semibold"
+                        type="text"
+                        placeholder="e.g. Site Allowance"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td class="text-center">
+                      <input
+                        v-model="item.epf"
+                        class="form-check-input"
+                        type="checkbox"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td class="text-center">
+                      <input
+                        v-model="item.socso"
+                        class="form-check-input"
+                        type="checkbox"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td class="text-center">
+                      <input
+                        v-model="item.eis"
+                        class="form-check-input"
+                        type="checkbox"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td class="text-center">
+                      <input
+                        v-model="item.pcb"
+                        class="form-check-input"
+                        type="checkbox"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        v-model="item.description"
+                        class="form-control form-control-sm text-muted small"
+                        type="text"
+                        placeholder="Regulatory treatment or notes"
+                        :disabled="!canEdit || saving"
+                      />
+                    </td>
+                    <td v-if="canEdit" class="text-center">
+                      <button
+                        type="button"
+                        class="btn btn-outline-danger btn-sm p-0 px-1"
+                        title="Delete this category"
+                        :disabled="saving"
+                        @click="removeAllowanceType(idx)"
+                      >
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="!form.allowanceTypes || !form.allowanceTypes.length">
+                    <td colspan="7" class="text-center text-muted py-3">
+                      No allowance categories defined. Click "Add Category" or "Reset to Defaults".
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card bg-light border-0 p-2 mt-2">
+              <div class="small text-muted">
+                <i class="bi bi-info-circle text-primary me-1"></i>
+                <strong>Malaysian Statutory Notes:</strong>
+                <ul class="mb-0 mt-1 ps-3">
+                  <li><strong>Transportation Allowance:</strong> Official travel / petrol incurred during work duties is exempt from SOCSO/EIS, and tax-exempt up to RM6,000/year under Public Ruling 11/2012.</li>
+                  <li><strong>Communication Allowance:</strong> Mobile and internet bill allowance for official duties is tax-exempt up to RM2,400/year under LHDN perquisites.</li>
+                  <li><strong>Business Travel Allowance:</strong> Actual official travel reimbursement / per diem is exempt from EPF, SOCSO, EIS, and income tax.</li>
+                  <li><strong>Other Fixed Allowances:</strong> Fixed general allowances (cost of living, hardship, housing) are subject to EPF, SOCSO, EIS and PCB.</li>
+                </ul>
               </div>
             </div>
           </div>

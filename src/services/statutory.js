@@ -5,6 +5,13 @@
 // - EPF Act 452: Senior age >= 60 tier (0% EE, 4% ER)
 // - LHDN PCB: Progressive resident tax brackets (0% to 30%) & Section 6A RM 400 rebate
 
+export const DEFAULT_ALLOWANCE_TYPES = [
+  { id: 'transport', name: 'Transportation Allowance', epf: true, socso: false, eis: false, pcb: false, description: 'Official travel / petrol allowance (exempt from SOCSO/EIS; tax-exempt up to RM6,000/yr for official duties)' },
+  { id: 'communication', name: 'Communication Allowance', epf: true, socso: true, eis: true, pcb: false, description: 'Mobile phone and broadband allowance (tax-exempt up to RM2,400/yr for official duties)' },
+  { id: 'business_travel', name: 'Business Travel Allowance', epf: false, socso: false, eis: false, pcb: false, description: 'Reimbursement / per diem for business travel (exempt from EPF, SOCSO, EIS & PCB)' },
+  { id: 'other', name: 'Other Allowance', epf: true, socso: true, eis: true, pcb: true, description: 'General fixed allowances (subject to EPF, SOCSO, EIS and PCB)' }
+];
+
 export const DEFAULT_STATUTORY_CONFIG = {
   standardWorkingDays: 26,
   socsoCeiling: 6000.0,
@@ -16,7 +23,8 @@ export const DEFAULT_STATUTORY_CONFIG = {
   pcbIndividualReliefMonthly: 750.0, // RM 9,000 / 12
   pcbEpfMaxMonthlyDeduction: 333.33,  // RM 4,000 / 12
   pcbRebateMaxAnnualIncome: 35000.0,
-  pcbRebateAmount: 400.0
+  pcbRebateAmount: 400.0,
+  allowanceTypes: DEFAULT_ALLOWANCE_TYPES
 };
 
 export const TP1_RELIEF_CAPS = {
@@ -168,4 +176,41 @@ export function calculatePcb(grossPay, epfEmployee = 0, tp1MonthlyRelief = 0, ag
 
   const monthlyPcb = Math.round((annualTax / 12) * 100) / 100;
   return Math.max(0, monthlyPcb);
+}
+
+export function calculateStatutoryWages(basicSalary = 0, fixedAllowances = [], allowanceTypesConfig = DEFAULT_ALLOWANCE_TYPES) {
+  const basic = Math.max(0, parseFloat(basicSalary) || 0);
+  const typeMap = new Map();
+  (allowanceTypesConfig || DEFAULT_ALLOWANCE_TYPES).forEach(t => {
+    typeMap.set(String(t.name || t.id).trim().toUpperCase(), t);
+  });
+
+  let totalAllowance = 0;
+  let epfAllowance = 0;
+  let socsoAllowance = 0;
+  let eisAllowance = 0;
+  let pcbAllowance = 0;
+
+  if (Array.isArray(fixedAllowances)) {
+    fixedAllowances.forEach(item => {
+      const amt = Math.max(0, parseFloat(item.amount) || 0);
+      totalAllowance += amt;
+      const catKey = String(item.category || item.name || '').trim().toUpperCase();
+      const meta = typeMap.get(catKey) || { epf: true, socso: true, eis: true, pcb: true };
+      if (meta.epf) epfAllowance += amt;
+      if (meta.socso) socsoAllowance += amt;
+      if (meta.eis) eisAllowance += amt;
+      if (meta.pcb) pcbAllowance += amt;
+    });
+  }
+
+  return {
+    basic,
+    totalAllowance,
+    grossWage: basic + totalAllowance,
+    epfWages: basic + epfAllowance,
+    socsoWages: basic + socsoAllowance,
+    eisWages: basic + eisAllowance,
+    pcbWages: basic + pcbAllowance
+  };
 }

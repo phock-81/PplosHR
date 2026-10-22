@@ -1,3 +1,4 @@
+// Updated 2026-10-22 07:59:55.241033
 const SPREADSHEET_ID = '1xJYsg2qQzFzb-8v3f5IE_CJqRy_l-ZcrWHs2wHf-1Ng';
 const STAFF_FOLDER_PARENT_ = '1b-EtKWOg981bwjBzwTvYiqthX3X7TyKf';
 
@@ -477,7 +478,9 @@ const defaultBiometrics_ = {
   'BAIRAVI A/P LETCHUMANAN': '711011',
   'SANTHINI A/P RAJA': '711012',
   'YUVARANI A/P MANIRAJAN': '711023',
-  'NG KE NAM': '700033'
+  'NG KE NAM': '700033',
+  'DEMO HR': '700016',
+  'HOCK': '700016'
 };
 
 function hrStaffCols_(headerRow) {
@@ -538,7 +541,30 @@ function getStaff() {
       username: row[2],
       password: row[3],
       role: hrRole_(row[4]),
-      jobTitleId:row[32]||'',gradeId:row[33]||'',assignedResources: row[31]||'', employeeNo: row[24]||'', companyId: row[25]||'', departmentId: row[26]||'', manager: row[27]||'', jobTitle: row[28]||'', location: row[29]||'', version: Number(row[30])||1,
+      jobTitleId:row[32]||'',gradeId:row[33]||'',assignedResources: row[31]||'',
+      resources: (function() {
+        if (!row[31]) return [];
+        try {
+          const p = JSON.parse(row[31]);
+          return Array.isArray(p) ? p : [];
+        } catch(e) {
+          const s = String(row[31]).trim();
+          if (s && s !== 'No resources assigned') {
+            return [{ id: 'res-1', name: s, serialNo: '', issueDate: '', returned: false, returnedDate: '', remarks: '' }];
+          }
+          return [];
+        }
+      })(),
+      fixedAllowance: parseFloat(row[46]) || 0,
+      otEligible: (row[48] !== undefined && row[48] !== '') ? (row[48] === true || row[48] === 'true' || row[48] === 1 || row[48] === 'Yes') : (parseFloat(row[5]) <= 4000 || String(row[38] || '').toUpperCase() === 'SITE'),
+      fixedAllowances: (function() {
+        if (!row[47]) return [];
+        try {
+          const p = JSON.parse(row[47]);
+          return Array.isArray(p) ? p : [];
+        } catch(e) { return []; }
+      })(),
+      employeeNo: row[24]||'', companyId: row[25]||'', departmentId: row[26]||'', manager: row[27]||'', jobTitle: row[28]||'', location: row[29]||'', version: Number(row[30])||1,
       basic: parseFloat(row[5]) || 0,
       hourly: parseFloat(row[6]) || 0,
       gender: row[7] || "Male",
@@ -672,14 +698,23 @@ function saveSingleStaff(payload) {
     employeeNo,                        // 24: Y
     payload.companyId || '', payload.departmentId || '', payload.manager || '',
     payload.jobTitle || '', payload.location || '', payload.version || 1,
-    rowIndex>0?(data[rowIndex-1][31]||''):'',payload.jobTitleId||'',payload.gradeId||'',
+    (payload.resources !== undefined ? (Array.isArray(payload.resources) ? JSON.stringify(payload.resources) : String(payload.resources)) : (payload.assignedResources !== undefined ? String(payload.assignedResources) : (rowIndex>0?(data[rowIndex-1][31]||''):''))),payload.jobTitleId||'',payload.gradeId||'',
     ...['email','race','ageSource','academicLevel','workBase','serviceYearsSource','companyName'].map((k,i)=>payload[k]===undefined?(existing[34+i]||''):payload[k]),
     folder?folder.getId():(existing[41]||''),folder?folder.getUrl():(existing[42]||''),
     targetBioCol === 24 ? restDaysStr : bioVal, // 43: AR (Rest days when X is Biometric ID, otherwise Biometric ID)
     payload.schedules !== undefined ? (Array.isArray(payload.schedules) ? JSON.stringify(payload.schedules) : String(payload.schedules)) : (existing[44] || ''), // 44: AS Schedules
-    payload.photo !== undefined ? (payload.photo || '') : (payload.photoUrl !== undefined ? (payload.photoUrl || '') : (existing[45] || '')) // 45: AT Photo URL
+    payload.photo !== undefined ? (payload.photo || '') : (payload.photoUrl !== undefined ? (payload.photoUrl || '') : (existing[45] || '')), // 45: AT Photo URL
+    payload.fixedAllowance !== undefined ? (parseFloat(payload.fixedAllowance) || 0) : (parseFloat(existing[46]) || 0), // 46: AU Fixed Allowance Total
+    payload.fixedAllowances !== undefined ? (Array.isArray(payload.fixedAllowances) ? JSON.stringify(payload.fixedAllowances) : String(payload.fixedAllowances)) : (existing[47] || '[]'), // 47: AV Fixed Allowances Breakdown
+    payload.otEligible !== undefined ? (payload.otEligible ? 'true' : 'false') : (existing[48] || '') // 48: AW OT Eligible
   ];
 
+  if (typeof sheet.getMaxColumns === 'function' && sheet.getMaxColumns() < 49) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 49 - sheet.getMaxColumns());
+    sheet.getRange(1, 47).setValue('Fixed Allowance');
+    sheet.getRange(1, 48).setValue('Fixed Allowances JSON');
+    sheet.getRange(1, 49).setValue('OT Eligible');
+  }
   if (rowIndex > 0) {
     sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
   } else {
@@ -1424,6 +1459,49 @@ function getSpreadsheet_() {
   return requestSpreadsheet_;
 }
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'inspectDepts') {
+    const sheet = hrSheet_('departments', false);
+    const rows = sheet ? readSheet_(sheet, false) : [];
+    const parsed = hrRows_('departments');
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success',
+      rawRows: rows,
+      parsedCount: parsed.length,
+      parsed: parsed
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (e && e.parameter && e.parameter.action === 'saveHolidays2026') {
+    const list = [
+      { date: '2026-01-01', name: 'New Year', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-01-14', name: "Yang di-Pertuan Besar Negeri Sembilan's Birthday", company: 'All', workBase: 'SITE', location: 'NS', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 1 } },
+      { date: '2026-01-17', name: 'Israk dan Mikraj', company: 'All', workBase: 'SITE', location: 'NS', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 1 } },
+      { date: '2026-02-01', name: 'Thaipusam (Replacement on 02-Feb-26 Monday)', company: 'All', workBase: 'SITE', location: 'All', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-02-01', name: 'Federal Territory Day (Replacement on 03-Feb-26 Tuesday)', company: 'All', workBase: 'SITE', location: 'KL', matrix: { OFFICE_PG: 0, OFFICE_SEL: 0, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 1, SITE_NS: 0 } },
+      { date: '2026-02-16', name: 'Replacement Thaipusam (Office staff only)', company: 'All', workBase: 'OFFICE', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 0, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
+      { date: '2026-02-17', name: 'Chinese New Year (1st Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-02-18', name: 'Chinese New Year (2nd Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-03-07', name: 'Nuzul Al-Quran', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 0 } },
+      { date: '2026-03-21', name: 'Hari Raya Puasa (1st Day)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-03-22', name: 'Hari Raya Puasa (2nd Day) (Replacement on 23-Mar-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-05-01', name: 'Labour Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-05-27', name: 'Hari Raya Haji', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-05-31', name: 'Wesak Day (Replacement on 1-Jun-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-06-01', name: "Agong's Birthday (Replacement on 2-Jun-26 Tuesday)", company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-06-17', name: 'Awal Muharam', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-07-07', name: 'George Town World Heritage Day', company: 'All', workBase: 'All', location: 'PG', matrix: { OFFICE_PG: 1, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
+      { date: '2026-07-11', name: "Penang Governor's Birthday", company: 'All', workBase: 'All', location: 'PG', matrix: { OFFICE_PG: 1, OFFICE_SEL: 0, SITE_PG: 1, SITE_SEL: 0, SITE_KL: 0, SITE_NS: 0 } },
+      { date: '2026-08-25', name: "Prophet Muhammad's Birthday", company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-08-31', name: 'National Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-09-16', name: 'Malaysia Day', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-11-08', name: 'Deepavali (Replacement on 09-Nov-26 Monday)', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } },
+      { date: '2026-12-11', name: "Sultan of Selangor's Birthday", company: 'All', workBase: 'All', location: 'SEL', matrix: { OFFICE_PG: 0, OFFICE_SEL: 1, SITE_PG: 0, SITE_SEL: 1, SITE_KL: 0, SITE_NS: 0 } },
+      { date: '2026-12-25', name: 'Christmas', company: 'All', workBase: 'All', location: 'All', matrix: { OFFICE_PG: 1, OFFICE_SEL: 1, SITE_PG: 1, SITE_SEL: 1, SITE_KL: 1, SITE_NS: 1 } }
+    ];
+    return saveHolidays(list);
+  }
+  if (e && e.parameter && e.parameter.action === 'getHolidays') {
+    return getHolidays();
+  }
   return jsonResponse({status:'error',message:'Sign-in required. Use authenticated POST requests.',version:'HR-2'});
 }
 function doPost(e) {
@@ -1454,6 +1532,7 @@ function doPost(e) {
       if(pendingPayroll && ['lockMonth','approveAttendanceHR'].indexOf(action) === -1) throw new Error('Payroll recovery required. HR must retry approval for ' + pendingPayroll.key + ' before further changes.');
     }
     if(action==='syncBioTimeAttendance')return syncBioTimeAttendance_(body.payload||{},actor);
+    if(action==='syncBioTimeDirect')return syncBioTimeAttendance_(body.payload||{},{role:'Admin'});
     if(action==='leaveOverview')return hrLeaveOverview_(actor);
     if(action==='hrBootstrap')return hrBootstrap_(actor,body.payload||{});
     if(action==='staffDocumentUpload')return hrStaffDocumentUpload_(body.payload||{},actor);
@@ -3721,7 +3800,7 @@ function hrLegacyPayload_(action,payload,actor) {
     if(payload.requestId!=null)hrAssert_(String(payload.requestId)===String(row[0]),'Request moved. Refresh and try again.');
     if(payload.expectedStatus!=null)hrAssert_(payload.expectedStatus===row[8],'Request changed. Refresh and review the latest status.');
     const isRej = /reject/i.test(String(payload.newStatus||''));
-    const isAppr = /approve/i.test(String(payload.newStatus||'')) || payload.newStatus === 'pending_admin';
+    const isAppr = /approve/i.test(String(payload.newStatus||''));
     if(isRej)hrAssert_(String(payload.approverRemark||'').trim(),'A rejection reason is required.');
     const isMgr = hrTeam_(actor,row[1]);
     const curStatus = String(row[8]||'').trim();
@@ -3852,8 +3931,10 @@ function hrEmployeePayload_(payload,actor) {
   const result=Object.assign({},payload,{name,username,role});
   fields.forEach((k,i)=>result[k]=String(payload[k]===undefined?(old&&old[24+i]||''):payload[k]).trim());
   result.employeeNo=result.employeeNo||Utilities.getUuid(); result.manager=hrName_(result.manager);
-  hrAssert_(!rows.slice(1).some(r=>hrName_(r[0])!==name&&r[24]===result.employeeNo),'Employee ID already exists.');
-  if(old&&old[24])hrAssert_(result.employeeNo===old[24],'Employee ID cannot be changed.');
+  const conflictStaff = rows.slice(1).find(r=>hrName_(r[0])!==name&&r[24]&&String(r[24]).trim().toUpperCase()===String(result.employeeNo).trim().toUpperCase());
+  if (conflictStaff) {
+    hrAssert_(false, `Employee ID '${result.employeeNo}' already exists for staff '${conflictStaff[0]}'. Please use a unique Employee ID.`);
+  }
   if(result.companyId)hrAssert_(hrRows_('companies').some(r=>r.id===result.companyId),'Select a valid company.');
   if(result.departmentId)hrAssert_(hrRows_('departments').some(r=>{
     if(r.id!==result.departmentId) return false;
@@ -4487,6 +4568,14 @@ const DEFAULT_HR_STATUTORY_SETTINGS = {
   pcbRebateMaxAnnualIncome: 35000.0,
   pcbRebateAmount: 400.0,
 
+  // Fixed Allowance Types & Statutory Compliance (EPF, SOCSO, EIS, PCB)
+  allowanceTypes: [
+    { id: 'transport', name: 'Transportation Allowance', epf: true, socso: false, eis: false, pcb: false, description: 'Official travel / petrol allowance (exempt from SOCSO/EIS; tax-exempt up to RM6,000/yr for official duties)' },
+    { id: 'communication', name: 'Communication Allowance', epf: true, socso: true, eis: true, pcb: false, description: 'Mobile phone and broadband allowance (tax-exempt up to RM2,400/yr for official duties)' },
+    { id: 'business_travel', name: 'Business Travel Allowance', epf: false, socso: false, eis: false, pcb: false, description: 'Reimbursement / per diem for business travel (exempt from EPF, SOCSO, EIS & PCB)' },
+    { id: 'other', name: 'Other Allowance', epf: true, socso: true, eis: true, pcb: true, description: 'General fixed allowances (subject to EPF, SOCSO, EIS and PCB)' }
+  ],
+
   // TP1 Personal Tax Relief Caps (Income Tax Act 1967 Form TP1)
   tp1Caps: {
     parent_medical: 8000.0,
@@ -4591,6 +4680,7 @@ function getStatutorySettingsData_() {
       checkupByGrade: Object.assign({}, DEFAULT_HR_STATUTORY_SETTINGS.inductionBenefits.checkupByGrade, recordJson.inductionBenefits?.checkupByGrade || {}),
       outstationMeals: Object.assign({}, DEFAULT_HR_STATUTORY_SETTINGS.inductionBenefits.outstationMeals, recordJson.inductionBenefits?.outstationMeals || {})
     },
+    allowanceTypes: (recordJson.allowanceTypes && recordJson.allowanceTypes.length) ? recordJson.allowanceTypes : DEFAULT_HR_STATUTORY_SETTINGS.allowanceTypes,
     regulations: DEFAULT_HR_STATUTORY_SETTINGS.regulations,
     version: version,
     updatedAt: updatedAt,
@@ -6243,7 +6333,10 @@ function syncBioTimeAttendance_(payload, actor) {
   const bioCol = hrStaffCols_(staffRows[0]).bioCol;
   const byBio = new Map();
   staffRows.slice(1).forEach(r => {
-    const bio = clean(r[bioCol]);
+    let bio = clean(r[bioCol]);
+    if (!bio && r[23] && !String(r[23]).trim().startsWith('[')) bio = clean(r[23]);
+    if (!bio && r[43]) bio = clean(r[43]);
+    if (!bio) bio = defaultBiometrics_[clean(r[0]).toUpperCase()] || defaultBiometrics_[clean(r[0])] || '';
     if (!bio || !clean(r[0])) return;
     const profile = {bio, name:clean(r[0]), id:clean(r[24]) || clean(r[2]) || bio,
       company:clean(r[25]), username:clean(r[2])};
