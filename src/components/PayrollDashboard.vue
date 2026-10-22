@@ -1835,12 +1835,13 @@ onBeforeUnmount(() => {
                                     <table class="table table-sm table-bordered align-middle mb-0" id="staffResourcesTable">
                                         <thead class="table-light small">
                                             <tr>
-                                                <th style="width: 22%;">Resource Name / Item</th>
-                                                <th style="width: 18%;">Serial No. / Tag</th>
-                                                <th style="width: 15%;">Date Issued</th>
-                                                <th class="text-center" style="width: 10%;">Returned?</th>
-                                                <th style="width: 15%;">Returned Date</th>
-                                                <th style="width: 20%;">Return Remarks / Handover</th>
+                                                <th style="width: 20%;">Resource Type</th>
+                                                <th style="width: 22%;">Model / Item</th>
+                                                <th style="width: 15%;">Serial No. / Tag</th>
+                                                <th style="width: 12%;">Date Issued</th>
+                                                <th class="text-center" style="width: 8%;">Returned?</th>
+                                                <th style="width: 12%;">Returned Date</th>
+                                                <th style="width: 16%;">Return Remarks / Handover</th>
                                                 <th class="text-center" style="width: 5%;">Action</th>
                                             </tr>
                                         </thead>

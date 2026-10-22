@@ -2250,7 +2250,8 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                 if (myResources && myResources.length > 0) {
                     const resRows = myResources.map(r => `
                         <tr>
-                            <td class="fw-bold text-dark"><i class="bi bi-box-seam me-1 text-secondary"></i>${r.name || r.title || 'Item'}</td>
+                            <td class="fw-semibold text-primary"><i class="bi bi-tag-fill me-1 text-primary"></i>${r.type || 'Equipment'}</td>
+                            <td class="fw-bold text-dark">${r.model || r.name || 'Item'}</td>
                             <td class="font-monospace small">${r.serialNo || '-'}</td>
                             <td class="small">${r.issueDate || '-'}</td>
                             <td class="text-center">
@@ -5958,13 +5959,75 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         return list;
     }
 
+    
+    function getAvailableResourceCatalog() {
+        let list = [];
+        if (cachedHrBootstrapData && cachedHrBootstrapData.records && cachedHrBootstrapData.records.resources && cachedHrBootstrapData.records.resources.length) {
+            list = cachedHrBootstrapData.records.resources;
+        } else if (typeof window !== 'undefined' && window.hrResources && window.hrResources.length) {
+            list = window.hrResources;
+        } else {
+            try {
+                const raw = localStorage.getItem('hr_resources');
+                if (raw) list = JSON.parse(raw);
+            } catch(_) {}
+        }
+        if (!list || !list.length) {
+            list = [
+                { title: 'Notebook / Laptop' },
+                { title: 'Desktop Computer' },
+                { title: 'Monitor' },
+                { title: 'Tablet' },
+                { title: 'Mobile Phone' },
+                { title: 'Mobile SIM Card' },
+                { title: 'Broadband / Internet Device' },
+                { title: 'Office Telephone' },
+                { title: 'Company Vehicle' },
+                { title: 'Access Card' },
+                { title: 'Office / Gate Key' },
+                { title: 'Printer' },
+                { title: 'Other' }
+            ];
+        }
+        return list.filter(r => r.availability !== 'Inactive');
+    }
+
     function addStaffResourceRow(item = {}) {
         const rowId = item.id || ('res_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
         const isRet = Boolean(item.returned);
+        const catList = getAvailableResourceCatalog();
+        
+        let selectedType = item.type || item.category || '';
+        let selectedModel = item.model || '';
+        if (!selectedType && item.name) {
+            const match = catList.find(c => item.name.toLowerCase().startsWith(c.title.toLowerCase()));
+            if (match) {
+                selectedType = match.title;
+                selectedModel = item.name.slice(match.title.length).replace(/^[:s-]+/, '');
+            } else {
+                selectedModel = item.name;
+            }
+        }
+        if (!selectedType && catList.length > 0) {
+            selectedType = catList[0].title;
+        }
+
+        const catOptions = catList.map(c => {
+            const isSel = (c.title === selectedType) ? 'selected' : '';
+            return `<option value="${c.title}" ${isSel}>${c.title}</option>`;
+        }).join('');
+
         const rowHtml = `
             <tr class="staff-resource-row" data-id="${rowId}">
                 <td>
-                    <input type="text" class="form-control form-control-sm staff-res-name" value="${item.name || ''}" placeholder="e.g. Laptop, Phone, Access Card" required>
+                    <select class="form-select form-select-sm staff-res-type" required>
+                        <option value="">-- Select Type --</option>
+                        ${catOptions}
+                        <option value="Other" ${selectedType === 'Other' ? 'selected' : ''}>Other</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-res-model" value="${selectedModel || ''}" placeholder="e.g. Dell XPS 15 / iPhone 14" required>
                 </td>
                 <td>
                     <input type="text" class="form-control form-control-sm staff-res-serial" value="${item.serialNo || ''}" placeholder="e.g. SN-88291 / Tag">
@@ -6014,15 +6077,25 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
     function collectStaffResources() {
         const list = [];
         $('#staffResourcesTableBody tr.staff-resource-row').each(function() {
-            const id = $(this).attr('data-id') || ('res_' + Date.now());
-            const name = $(this).find('.staff-res-name').val().trim();
-            const serialNo = $(this).find('.staff-res-serial').val().trim();
+            const type = $(this).find('.staff-res-type').val() || '';
+            const model = $(this).find('.staff-res-model').val() || '';
+            const name = model ? (type ? `${type}: ${model}` : model) : type;
+            const serialNo = $(this).find('.staff-res-serial').val() || '';
             const issueDate = $(this).find('.staff-res-issue').val() || '';
             const returned = $(this).find('.staff-res-returned').is(':checked');
             const returnedDate = $(this).find('.staff-res-retdate').val() || '';
-            const remarks = $(this).find('.staff-res-remarks').val().trim();
-            if (name || serialNo) {
-                list.push({ id, name, serialNo, issueDate, returned, returnedDate, remarks });
+            const remarks = $(this).find('.staff-res-remarks').val() || '';
+            if (type || model || serialNo) {
+                list.push({
+                    type: type || 'Equipment',
+                    model: model,
+                    name: name || 'Item',
+                    serialNo: serialNo,
+                    issueDate: issueDate,
+                    returned: returned,
+                    returnedDate: returnedDate,
+                    remarks: remarks
+                });
             }
         });
         return list;

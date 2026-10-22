@@ -1585,6 +1585,7 @@ function doPost(e) {
     if(action==='staffDocumentUpload')return hrStaffDocumentUpload_(body.payload||{},actor);
     if(action==='uploadProfilePhoto')return hrUploadProfilePhoto_(body.payload||{},actor);
     if(action==='uploadCandidateCv')return hrUploadCandidateCv_(body.payload||{},actor);
+    if(action==='hrDelete')return hrDelete_(body.payload||{},actor);
     if(action==='hrSave')return hrSave_(body.payload||{},actor);
     if(action==='hrTransition')return hrTransition_(body.payload||{},actor);
     if(action==='getStatutorySettings')return getStatutorySettings(actor);
@@ -2299,57 +2300,10 @@ const HR_MODULES = {
     "admin": true,
     "public": true,
     "fields": [
-      {
-        "key": "code",
-        "label": "Resource code",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "title",
-        "label": "Resource name",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "category",
-        "label": "Type",
-        "type": "select",
-        "options": [
-          "Vehicle",
-          "Room",
-          "Equipment",
-          "Laptop",
-          "Other"
-        ],
-        "required": true
-      },
-      {
-        "key": "location",
-        "label": "Location",
-        "type": "text"
-      },
-      {
-        "key": "assetValue",
-        "label": "Asset value (RM)",
-        "type": "number",
-        "min": 0
-      },
-      {
-        "key": "availability",
-        "label": "Availability",
-        "type": "select",
-        "options": [
-          "Available",
-          "Maintenance"
-        ],
-        "required": true
-      },
-      {
-        "key": "notes",
-        "label": "Description",
-        "type": "textarea"
-      }
+      { "key": "code", "label": "Resource code", "type": "text" },
+      { "key": "availability", "label": "Availability", "type": "select", "options": ["Available", "Maintenance", "Inactive"], "required": true },
+      { "key": "title", "label": "Resource name", "type": "text", "required": true },
+      { "key": "notes", "label": "Description", "type": "textarea" }
     ]
   },
   "bookings": {
@@ -3562,6 +3516,24 @@ function hrWrite_(module,record,actor,old,action) {
   if(module==='resources')hrProfiles_().forEach(p=>hrSyncAssignedResources_(p.employee));
   hrAudit_(actor,module,record,action);return jsonResponse({status:'success',data:record});
 }
+
+function hrDelete_(payload, actor) {
+  hrAssert_(hrAdmin_(actor), 'Only HR administrators can delete records.');
+  const module = payload.module;
+  const id = payload.id;
+  hrAssert_(!!module && !!id, 'Module and record ID are required.');
+  const sheet = hrSheet_(module, false);
+  hrAssert_(!!sheet, 'Sheet for ' + module + ' not found.');
+  const rows = hrRows_(module);
+  const target = rows.find(r => r.id === id || r.code === id);
+  hrAssert_(!!target, 'Record not found.');
+  if (target._row) {
+    sheet.deleteRow(target._row);
+    invalidateSheetRead_(sheet);
+  }
+  return jsonResponse({ status: 'success', message: 'Record deleted successfully.' });
+}
+
 function hrSave_(payload,actor) {
   const module=payload.module,spec=HR_MODULES[module];hrAssert_(!!spec,'Unknown HR module.');
   hrAssert_(module!=='profiles','Use Employee Management to edit the employee master.');
