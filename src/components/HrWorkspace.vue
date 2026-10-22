@@ -402,6 +402,9 @@ function isMultiSelect(field) {
   if (active.value === 'departments' && field.key === 'companyId') {
     return true;
   }
+  if (active.value === 'departments' && ['workBase', 'workLocation'].includes(field.key)) {
+    return true;
+  }
   return false;
 }
 function getMultiSelectValues(fieldKey) {
@@ -687,7 +690,7 @@ async function load(force=false){
     if(typeof window!=='undefined'&&localStorage.getItem('hr_custom_workSchedules')){try{const custom=JSON.parse(localStorage.getItem('hr_custom_workSchedules')||'[]');if(Array.isArray(custom)&&custom.length){const merged=[...records.value.workSchedules];custom.forEach(c=>{const idx=merged.findIndex(m=>m.id===c.id||(m.code===c.code&&m.company===c.company));if(idx>-1)merged[idx]={...merged[idx],...c};else merged.push(c);});records.value.workSchedules=deduplicateSchedules(merged);}}catch(_){}}
     if(!records.value.workBases||!records.value.workBases.length){records.value.workBases=JSON.parse(JSON.stringify(DEFAULT_WORK_BASES));}else{records.value.workBases=deduplicateByCode(records.value.workBases);}
     if(!records.value.workLocations||!records.value.workLocations.length){records.value.workLocations=JSON.parse(JSON.stringify(DEFAULT_WORK_LOCATIONS));}else{records.value.workLocations=deduplicateByCode(records.value.workLocations);}
-    if(typeof window!=='undefined'){window.workBases=records.value.workBases;window.workLocations=records.value.workLocations;window.workSchedules=records.value.workSchedules;window.hrCompanies=records.value.companies||[];}
+    if(typeof window!=='undefined'){window.workBases=records.value.workBases;window.workLocations=records.value.workLocations;window.workSchedules=records.value.workSchedules;window.hrCompanies=records.value.companies||[];window.hrDepartments=records.value.departments||[];window.hrJobTitles=records.value.jobTitles||[];window.hrJobGrades=records.value.jobGrades||[];}
     employees.value=(res.data.employees || []).map(emp => ({
       ...emp,
       id: emp.id || emp.employeeNo || emp.name,
@@ -837,11 +840,11 @@ function options(field){
     const opts=companies.length?companies.map(c=>({value:c.code||c.title,label:c.title?`${c.title} (${c.code||c.title})`:c.code})):(field.options||[]).filter(v=>v!=='All').map(v=>({value:v,label:v}));
     return [{value:'All',label:'All companies'},...opts.filter(v=>String(v.value).toUpperCase()!=='ALL')];
   }
-  if(field.key==='workBase'&&(active.value==='workSchedules'||active.value==='jobTitles')){
+  if(field.key==='workBase'&&(active.value==='workSchedules'||active.value==='jobTitles'||active.value==='departments')){
     const bases=deduplicateByCode((records.value.workBases&&records.value.workBases.length)?records.value.workBases:DEFAULT_WORK_BASES);
     return [{value:'All',label:'All work bases'},...bases.filter(b=>b.availability!=='Inactive').map(b=>({value:(b.code||b.title||'').toUpperCase(),label:b.title?`${b.title} (${b.code})`:b.code}))];
   }
-  if((field.key==='workLocation'&&active.value==='workSchedules')||(field.key==='workLocation'&&active.value==='jobTitles')){
+  if((field.key==='workLocation'&&active.value==='workSchedules')||(field.key==='workLocation'&&active.value==='jobTitles')||(field.key==='workLocation'&&active.value==='departments')){
     const locs=deduplicateByCode((records.value.workLocations&&records.value.workLocations.length)?records.value.workLocations:DEFAULT_WORK_LOCATIONS);
     return [{value:'All',label:'All work locations'},...locs.filter(l=>l.availability!=='Inactive').map(l=>({value:String(l.code||l.title||'').toUpperCase(),label:l.title?`${l.title} (${l.code||l.title})`:String(l.code||l.title)}))];
   }
@@ -1375,7 +1378,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
   <InductionBenefits v-if="['jobGrades','companies','claims','claimPolicies'].includes(active)"/>
   
   <!-- Organisation Sub-module Switcher & View Mode Selector -->
-  <div v-if="['companies','jobGrades','departments','jobTitles','resources','resourcePolicies','workSchedules','workBases','workLocations','claimTypes','claimPolicies'].includes(active)" class="org-subnav-tabs d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
+  <div v-if="['companies','jobGrades','departments','jobTitles','resources','workSchedules','workBases','workLocations','claimTypes','claimPolicies'].includes(active)" class="org-subnav-tabs d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
     <div class="nav nav-pills flex-nowrap overflow-auto" role="tablist">
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='companies'}" type="button" @click="choose('companies')">
         <i class="bi bi-building me-1"></i>Companies
@@ -1394,9 +1397,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='resources'}" type="button" @click="choose('resources')">
         <i class="bi bi-box-seam me-1"></i>Resource Catalogue
       </button>
-      <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='resourcePolicies'}" type="button" @click="choose('resourcePolicies')">
-        <i class="bi bi-shield-slash me-1"></i>Resource Limits
-      </button>
+
       <button class="nav-link py-1 px-3 fw-bold me-1" :class="{active: active==='workSchedules'}" type="button" @click="choose('workSchedules')">
         <i class="bi bi-clock-history me-1"></i>Shift Templates
       </button>
@@ -1422,7 +1423,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
 
   <div class="hr-section-title d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <div class="flex-grow-1" style="min-width: 260px;">
-      <p v-if="['claimPolicies','resourcePolicies'].includes(active)" class="hr-note mb-0">Grade-specific limits override the all-grades policy. Where policies exist for the company and category, an employee must match a grade or all-grades policy. Zero claim limits or a zero resource quantity disable that entitlement.</p>
+      <p v-if="active==='claimPolicies'" class="hr-note mb-0">Grade-specific limits override the all-grades policy. Where policies exist for the company and category, an employee must match a grade or all-grades policy. Zero claim limits disable that entitlement.</p>
       <p v-else-if="active==='loans'" class="hr-note mb-0">Record externally approved loan disbursements and repayments. This register does not initiate bank payments, calculate interest or deduct repayments from payroll.</p>
       <p v-else-if="active==='tax'" class="hr-note mb-0">Declaration register for HR review. Amounts are employee declarations; no eligibility, tax deduction or official TP1 submission is calculated here.</p>
       <p v-else-if="active==='adjustments'" class="hr-note mb-0">Posted adjustments change annual, medical, hospitalisation leave after an opening balance is recorded. Use a negative entry to reverse a posting. Refresh My Leave to see the updated balance.</p>
@@ -1857,6 +1858,8 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
                     <div class="text-muted small mt-1">
                       <span class="badge bg-secondary-subtle text-secondary border fw-bold">{{r.code}}</span>
                       <span class="badge bg-light text-dark border ms-1"><i class="bi bi-building me-1"></i>{{label('companies', r.companyId)}}</span>
+                      <span v-if="r.workBase" class="badge bg-primary-subtle text-primary border ms-1"><i class="bi bi-briefcase me-1"></i>{{r.workBase}}</span>
+                      <span v-if="r.workLocation" class="badge bg-info-subtle text-info border ms-1"><i class="bi bi-geo-alt me-1"></i>{{r.workLocation}}</span>
                     </div>
                   </div>
                 </div>
@@ -1879,6 +1882,8 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
               <th>Dept Code</th>
               <th>Department Name</th>
               <th>Company</th>
+              <th>Work Base</th>
+              <th>Work Location</th>
               <th>Department Head</th>
               <th class="text-end">Actions</th>
             </tr>
@@ -2193,10 +2198,6 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
                   <div><strong>Per receipt:</strong> RM {{money(r.receiptLimit)}}</div>
                   <div><strong>Annual limit:</strong> RM {{money(r.annualLimit)}} ({{r.year}})</div>
                 </div>
-                <div v-if="active==='resourcePolicies'">
-                  <div><strong>Max active:</strong> {{r.maxAssigned}}</div>
-                  <div><strong>Value cap:</strong> {{r.maxValue ? 'RM ' + money(r.maxValue) : 'None'}}</div>
-                </div>
               </div>
             </div>
             <div class="d-flex gap-2 pt-2 border-top mt-auto flex-wrap">
@@ -2210,7 +2211,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
       </div>
     </template>
     <template v-else>
-      <article v-for="r in pagedRecords" :key="r.id" class="main-card hr-record"><div class="hr-record-head"><div><span class="hr-status" :class="{'is-complete':['Approved','Completed','Paid','Reviewed','Issued','Active','Available'].includes(r.status||r.availability),'is-rejected':['Rejected','Cancelled','Inactive'].includes(r.status||r.availability)}">{{r.status||r.availability||'Active'}}</span><h5>{{primary(r)}}</h5><p>{{r.employee||r.category||r.code}} <span v-if="r.date">· {{r.date}}</span><span v-if="r.amount"> · RM {{money(r.amount)}}</span><span v-if="r.finalRating"> · Score {{r.finalRating}} / 5</span></p></div><div class="hr-record-actions"><button class="btn btn-outline-secondary btn-sm" @click="detail=r">Details</button><button v-if="editable(r)" class="btn btn-outline-primary btn-sm" @click="edit(r)">Edit</button><button v-for="a in actions(active,r)" :key="a.command" class="btn btn-outline-primary btn-sm" @click="ask(active,r,a)">{{a.label}}</button><button v-if="active==='letters'&&r.status==='Issued'" class="btn btn-outline-secondary btn-sm" @click="printLetter(r)">Print</button></div></div><div v-if="r.outstanding!=null" class="hr-record-sub">Outstanding: RM {{money(r.outstanding)}}</div><div v-if="r.start" class="hr-record-sub">{{r.start.replace('T',' ')}} — {{r.end.replace('T',' ')}} <span v-if="r.resourceId">· {{label('resources',r.resourceId)}}</span><span v-if="r.resourceId&&resourceCategory(r.resourceId)" class="badge bg-light text-dark border ms-2"><i class="bi bi-tag me-1"></i>{{resourceCategory(r.resourceId)}}</span></div><div v-if="r.gradeId" class="hr-record-sub">Grade: {{label('jobGrades',r.gradeId)}}</div><div v-if="active==='claimPolicies'" class="hr-record-sub">{{r.category}} · {{r.year}} · Per receipt RM {{money(r.receiptLimit)}} · Annual RM {{money(r.annualLimit)}} · {{r.gradeId?label('jobGrades',r.gradeId):'All grades'}}</div><div v-if="active==='resourcePolicies'" class="hr-record-sub">{{r.category}} · Maximum {{r.maxAssigned}} active · {{r.maxValue?'Value cap RM '+money(r.maxValue):'No asset-value cap'}}</div><div v-if="r.manager" class="hr-record-sub">Reviewer: {{r.manager}}</div></article>
+      <article v-for="r in pagedRecords" :key="r.id" class="main-card hr-record"><div class="hr-record-head"><div><span class="hr-status" :class="{'is-complete':['Approved','Completed','Paid','Reviewed','Issued','Active','Available'].includes(r.status||r.availability),'is-rejected':['Rejected','Cancelled','Inactive'].includes(r.status||r.availability)}">{{r.status||r.availability||'Active'}}</span><h5>{{primary(r)}}</h5><p>{{r.employee||r.category||r.code}} <span v-if="r.date">· {{r.date}}</span><span v-if="r.amount"> · RM {{money(r.amount)}}</span><span v-if="r.finalRating"> · Score {{r.finalRating}} / 5</span></p></div><div class="hr-record-actions"><button class="btn btn-outline-secondary btn-sm" @click="detail=r">Details</button><button v-if="editable(r)" class="btn btn-outline-primary btn-sm" @click="edit(r)">Edit</button><button v-for="a in actions(active,r)" :key="a.command" class="btn btn-outline-primary btn-sm" @click="ask(active,r,a)">{{a.label}}</button><button v-if="active==='letters'&&r.status==='Issued'" class="btn btn-outline-secondary btn-sm" @click="printLetter(r)">Print</button></div></div><div v-if="r.outstanding!=null" class="hr-record-sub">Outstanding: RM {{money(r.outstanding)}}</div><div v-if="r.start" class="hr-record-sub">{{r.start.replace('T',' ')}} — {{r.end.replace('T',' ')}} <span v-if="r.resourceId">· {{label('resources',r.resourceId)}}</span><span v-if="r.resourceId&&resourceCategory(r.resourceId)" class="badge bg-light text-dark border ms-2"><i class="bi bi-tag me-1"></i>{{resourceCategory(r.resourceId)}}</span></div><div v-if="r.gradeId" class="hr-record-sub">Grade: {{label('jobGrades',r.gradeId)}}</div><div v-if="active==='claimPolicies'" class="hr-record-sub">{{r.category}} · {{r.year}} · Per receipt RM {{money(r.receiptLimit)}} · Annual RM {{money(r.annualLimit)}} · {{r.gradeId?label('jobGrades',r.gradeId):'All grades'}}</div><div v-if="r.manager" class="hr-record-sub">Reviewer: {{r.manager}}</div></article>
     </template>
   </template>
  </template></div></div>

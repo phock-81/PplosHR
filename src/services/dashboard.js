@@ -273,17 +273,52 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
         return s.companyName || s.company || s.companyId || '';
     }
 
+    function getAllDepartments() {
+        if (cachedDepartments && cachedDepartments.length) return cachedDepartments;
+        if (typeof window !== 'undefined' && window.hrDepartments && window.hrDepartments.length) {
+            cachedDepartments = window.hrDepartments;
+            return cachedDepartments;
+        }
+        if (cachedHrBootstrapData?.records?.departments?.length) {
+            cachedDepartments = cachedHrBootstrapData.records.departments;
+            return cachedDepartments;
+        }
+        const cachedHr = CacheManager.getHrRecords();
+        if (cachedHr) {
+            for (const sc of ['all', 'overview', 'team', 'personal']) {
+                if (cachedHr[sc]?.records?.departments?.length) {
+                    cachedDepartments = cachedHr[sc].records.departments;
+                    return cachedDepartments;
+                }
+            }
+        }
+        const boot = CacheManager.getBootstrap();
+        if (boot?.cachedDepartments?.length) {
+            cachedDepartments = boot.cachedDepartments;
+            return cachedDepartments;
+        }
+        return [];
+    }
+
     function getStaffDepartment(s) {
         if (!s) return '';
-        if (cachedDepartments && cachedDepartments.length) {
-            const dept = cachedDepartments.find(d => 
-                (s.departmentId && (d.id === s.departmentId || d.code === s.departmentId || d.title === s.departmentId || d.name === s.departmentId)) ||
-                (s.department && (d.id === s.department || d.code === s.department || d.title === s.department || d.name === s.department)) ||
-                (s.departmentName && (d.id === s.departmentName || d.code === s.departmentName || d.title === s.departmentName || d.name === s.departmentName))
+        const depts = getAllDepartments();
+        const target = String(s.departmentId || s.department || s.departmentName || '').trim().toLowerCase();
+        if (target && depts.length) {
+            const dept = depts.find(d => 
+                (d.id && String(d.id).trim().toLowerCase() === target) ||
+                (d.code && String(d.code).trim().toLowerCase() === target) ||
+                (d.title && String(d.title).trim().toLowerCase() === target) ||
+                (d.name && String(d.name).trim().toLowerCase() === target)
             );
             if (dept) return dept.title || dept.name || dept.code;
         }
-        return s.departmentName || s.department || s.departmentId || '';
+        const fallback = s.departmentName || s.department || s.departmentId || '';
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(fallback).trim())) {
+            if (s.jobTitle && /hr|human resource/i.test(s.jobTitle)) return 'HUMAN RESOURCES';
+            return 'General Department';
+        }
+        return fallback;
     }
 
     function getStaffGrade(s) {
@@ -6395,6 +6430,15 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
             const fill=(id,rows,selected)=>{const el=document.getElementById(id);if(!el)return;el.replaceChildren(new Option('Not assigned',''));rows.forEach(r=>el.add(new Option(r.title||r.name,r.id||r.name)));el.value=selected||'';};
             fill('staffCompany',records.companies||[],profile.companyId);
             const departments=records.departments||[];
+            if (departments.length) {
+                cachedDepartments = departments;
+                if (typeof window !== 'undefined') window.hrDepartments = departments;
+            }
+            if (mode === 'UPDATE' && staffName) {
+                const curComp = getStaffCompany(profile);
+                const curDept = getStaffDepartment(profile);
+                $('#staffModalSubDept').text((curComp ? curComp + ' · ' : '') + (curDept || ''));
+            }
             const loadDepartments=()=>{
                 const compVal = $('#staffCompany').val();
                 const filteredDepts = compVal 
@@ -6405,12 +6449,34 @@ const API_URL = import.meta.env.VITE_GAS_API_URL;
                     })
                     : departments;
                 const currentDept = $('#staffDepartment').val() || profile.departmentId || '';
-                fill('staffDepartment', filteredDepts.map(d => ({
-                    id: d.id,
-                    title: d.code && d.title && d.code !== d.title ? `${d.title} (${d.code})` : (d.title || d.code || d.id)
-                })), currentDept);
+                fill('staffDepartment', filteredDepts.map(d => {
+                    let title = d.code && d.title && d.code !== d.title ? `${d.title} (${d.code})` : (d.title || d.code || d.id);
+                    const tags = [];
+                    if (d.workBase && String(d.workBase).toUpperCase() !== 'ALL') tags.push(d.workBase);
+                    if (d.workLocation && String(d.workLocation).toUpperCase() !== 'ALL') tags.push(d.workLocation);
+                    if (tags.length) title += ` [${tags.join(', ')}]`;
+                    return { id: d.id, title };
+                }), currentDept);
             };
-            loadDepartments();$('#staffCompany').off('change.hr').on('change.hr',loadDepartments);
+            loadDepartments();
+            $('#staffCompany').off('change.hr').on('change.hr', () => {
+                loadDepartments();
+                const curComp = getStaffCompany({ companyId: $('#staffCompany').val() });
+                const curDept = $('#staffDepartment option:selected').text();
+                if (curDept && curDept !== 'Not assigned') {
+                    $('#staffModalSubDept').text((curComp ? curComp + ' · ' : '') + curDept);
+                }
+            });
+            $('#staffDepartment').off('change.subDept').on('change.subDept', function() {
+                const selectedVal = $(this).val();
+                const depts = getAllDepartments();
+                const dObj = depts.find(d => d.id === selectedVal || d.code === selectedVal);
+                const deptTitle = dObj ? (dObj.title || dObj.name || dObj.code) : $(this).find('option:selected').text();
+                const curComp = getStaffCompany({ companyId: $('#staffCompany').val() });
+                if (deptTitle && deptTitle !== 'Not assigned') {
+                    $('#staffModalSubDept').text((curComp ? curComp + ' · ' : '') + deptTitle);
+                }
+            });
             const mgrEl = document.getElementById('staffManager');
             if (mgrEl) {
                 mgrEl.replaceChildren(new Option('Not assigned', ''));

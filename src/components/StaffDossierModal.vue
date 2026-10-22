@@ -138,7 +138,14 @@ const allStaffList = computed(() => {
     }
     const name = e.name || e.employee || '';
     const role = e.role || 'Staff';
-    const dept = e.department || e.departmentName || '';
+    let dept = e.department || e.departmentName || '';
+    if (typeof window !== 'undefined' && window.hrDepartments && window.hrDepartments.length) {
+      const d = window.hrDepartments.find(item => item.id === dept || item.code === dept);
+      if (d) dept = d.title || d.name || d.code;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(dept).trim())) {
+      dept = 'HUMAN RESOURCES';
+    }
     const empNo = e.employeeNo || e.id || '';
     const jobTitle = e.jobTitle || '';
     const icNo = e.icNo || '';
@@ -455,7 +462,19 @@ function buildLocalDossier(name) {
       companyId: s.companyId || '',
       companyName: s.companyName || s.company || '',
       departmentId: s.departmentId || '',
-      departmentName: s.departmentName || s.department || '',
+      departmentName: (() => {
+        let dn = s.departmentName || s.department || '';
+        const depts = (typeof window !== 'undefined' && window.hrDepartments && window.hrDepartments.length) ? window.hrDepartments : [];
+        if (depts.length) {
+          const t = String(s.departmentId || dn).trim().toLowerCase();
+          const found = depts.find(d => (d.id && String(d.id).trim().toLowerCase() === t) || (d.code && String(d.code).trim().toLowerCase() === t));
+          if (found) dn = found.title || found.name || found.code;
+        }
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(dn).trim())) {
+          return 'HUMAN RESOURCES';
+        }
+        return dn;
+      })(),
       manager: s.manager || '',
       jobTitle: s.jobTitle || '',
       jobTitleId: s.jobTitleId || '',

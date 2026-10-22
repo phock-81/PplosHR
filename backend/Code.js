@@ -2002,6 +2002,18 @@ const HR_MODULES = {
         "required": true
       },
       {
+        "key": "workBase",
+        "label": "Work Based",
+        "type": "select",
+        "options": ["All", "Office", "Site"]
+      },
+      {
+        "key": "workLocation",
+        "label": "Work Location",
+        "type": "select",
+        "options": ["All", "PG", "SEL", "KL", "NS"]
+      },
+      {
         "key": "manager",
         "label": "Department head",
         "type": "staff"
