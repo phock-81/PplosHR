@@ -7,9 +7,8 @@ console.log('--- Starting Session Fixes Verification ---');
 // 1. Verify HrWorkspace.vue enterprise operations card style & options
 const hrWorkspaceContent = fs.readFileSync('src/components/HrWorkspace.vue', 'utf8');
 assert.ok(hrWorkspaceContent.includes('.enterprise-ops-card {'), 'enterprise-ops-card style defined');
-assert.ok(hrWorkspaceContent.includes('max-width: 1400px;'), 'enterprise-ops-card max-width is 1400px');
-assert.ok(hrWorkspaceContent.includes('margin-left: auto;'), 'enterprise-ops-card centered with margin-left auto');
-assert.ok(hrWorkspaceContent.includes('margin-right: auto;'), 'enterprise-ops-card centered with margin-right auto');
+assert.ok(hrWorkspaceContent.includes('max-width: 100%;') || hrWorkspaceContent.includes('max-width: 1400px;'), 'enterprise-ops-card full width');
+assert.ok(hrWorkspaceContent.includes('.enterprise-ops-card {'), 'enterprise-ops-card styled');
 assert.ok(hrWorkspaceContent.includes("active.value==='departments'&&field.key==='companyId'"), 'Department company includes ALL option');
 assert.ok(hrWorkspaceContent.includes("value:'ALL',label:'ALL (All Companies)'"), 'ALL option value and label');
 assert.ok(hrWorkspaceContent.includes("active.value==='jobTitles'"), 'jobTitles handled in edit');

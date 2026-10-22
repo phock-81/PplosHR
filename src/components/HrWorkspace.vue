@@ -1787,21 +1787,23 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
     </template>
   </template>
 
-  <!-- Category Switcher for Grouped Work Bases & Locations -->
-  <div v-if="['workBases','workLocations'].includes(active)" id="workBasesLocationsCategorySwitcher" class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded-3 border">
-    <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-funnel me-1"></i>Category:</span>
-    <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn fw-semibold" :class="active==='workBases' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workBases')">
-        <i class="bi bi-briefcase me-1"></i>Work Bases ({{ (records.workBases || []).length }})
-      </button>
-      <button type="button" class="btn fw-semibold" :class="active==='workLocations' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workLocations')">
-        <i class="bi bi-geo-alt me-1"></i>Work Locations ({{ (records.workLocations || []).length }})
-      </button>
+  <!-- Specialized High-Density Layout for Grouped Work Bases & Locations -->
+  <template v-else-if="active==='workBases' || active==='workLocations'">
+    <!-- Category Switcher for Grouped Work Bases & Locations -->
+    <div id="workBasesLocationsCategorySwitcher" class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded-3 border">
+      <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-funnel me-1"></i>Category:</span>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn fw-semibold" :class="active==='workBases' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workBases')">
+          <i class="bi bi-briefcase me-1"></i>Work Bases ({{ (records.workBases || []).length }})
+        </button>
+        <button type="button" class="btn fw-semibold" :class="active==='workLocations' ? 'btn-primary' : 'btn-outline-secondary'" @click="choose('workLocations')">
+          <i class="bi bi-geo-alt me-1"></i>Work Locations ({{ (records.workLocations || []).length }})
+        </button>
+      </div>
     </div>
-  </div>
 
-  <!-- Specialized High-Density Layout for Work Bases -->
-  <template v-else-if="active==='workBases'">
+    <!-- Work Bases Content -->
+    <template v-if="active==='workBases'">
     <template v-if="orgViewMode==='tab'">
       <div class="row g-3 mb-3">
         <div v-for="r in pagedRecords" :key="r.id" class="col-12 col-sm-6 col-lg-3">
@@ -1859,8 +1861,8 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
     </template>
   </template>
 
-  <!-- Specialized High-Density Layout for Work Locations -->
-  <template v-else-if="active==='workLocations'">
+    <!-- Work Locations Content -->
+    <template v-else-if="active==='workLocations'">
     <template v-if="orgViewMode==='tab'">
       <div class="row g-3 mb-3">
         <div v-for="r in pagedRecords" :key="r.id" class="col-12 col-sm-6 col-lg-3">
@@ -1890,6 +1892,7 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
         </div>
       </div>
     </template>
+  </template>
     <template v-else>
       <div class="table-responsive main-card p-0 shadow-sm border rounded-3 mb-3">
         <table class="table table-hover align-middle mb-0">
@@ -2228,9 +2231,9 @@ onBeforeUnmount(()=>{clearOwnLeaveSummary();loadVersion++;window.removeEventList
 <style scoped>
 .enterprise-ops-card {
   width: 100%;
-  max-width: 1400px;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 .enterprise-ops-grid {
   display: grid;

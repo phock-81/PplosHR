@@ -992,10 +992,6 @@ onBeforeUnmount(() => {
                                 <label for="myProfileLocation">Work Location / Site</label>
                                 <input type="text" class="form-control" id="myProfileLocation" readonly>
                             </div>
-                            <div class="col-12 profile-field-group mt-2">
-                                <label for="myProfileAssignedResources"><i class="bi bi-laptop me-1 text-primary"></i>Assigned Resources &amp; Equipment</label>
-                                <textarea class="form-control" id="myProfileAssignedResources" rows="2" readonly></textarea>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1687,10 +1683,6 @@ onBeforeUnmount(() => {
                             <div class="col-md-4 col-sm-6">
                                 <label class="form-label fw-bold small text-muted" for="staffServiceYearsSource">Service years (source)</label>
                                 <input id="staffServiceYearsSource" class="form-control" type="number" min="0" step="any">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold small text-muted" for="staffAssignedResources">Assigned resources</label>
-                                <textarea id="staffAssignedResources" class="form-control" readonly rows="1"></textarea>
                             </div>
                         </div>
                     </div>
